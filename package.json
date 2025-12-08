@@ -1,0 +1,20 @@
+{
+    "name": "python-electron-app",
+    "version": "1.0.0",
+    "main": "main.js",
+    "scripts": {
+        "start": "./start_web.sh",
+        "start:electron": "electron .",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "description": "",
+    "devDependencies": {
+        "electron": "^39.2.6"
+    },
+    "dependencies": {
+        "jquery": "^3.7.1"
+    }
+}
