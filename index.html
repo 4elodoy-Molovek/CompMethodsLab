@@ -3,154 +3,280 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Beet Optimization Lab</title>
+    <title>Лаборатория оптимизации переработки свёклы</title>
     <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-    <div class="container-fluid">
-        <h1>Beet Processing Optimization</h1>
+    <div class="app-wrapper">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2 class="sidebar-title">Лаборатория свёклы</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-section="config">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-label">Настройки</span>
+                </a>
+                <a href="#" class="nav-item" data-section="optimization">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-label">Оптимизация</span>
+                </a>
+                <a href="#" class="nav-item" data-section="matrices">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-label">Матрицы</span>
+                </a>
+                <a href="#" class="nav-item" data-section="results">
+                    <span class="nav-icon">📈</span>
+                    <span class="nav-label">Результаты</span>
+                </a>
+            </nav>
+        </aside>
 
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card mb-3">
-                    <div class="card-header">Configuration</div>
-                    <div class="card-body">
-                        <form id="configForm">
-                            <div class="form-group">
-                                <label>Number of Batches (n)</label>
-                                <input type="number" class="form-control" id="n" value="5">
-                            </div>
-                            <div class="form-group">
-                                <label>Mass per Batch (M)</label>
-                                <input type="number" class="form-control" id="m" value="1000">
-                            </div>
-                            <hr>
-                            <h6>Initial Sugar (a)</h6>
-                            <div class="row">
-                                <div class="col"><input type="number" class="form-control" id="a_min" placeholder="Min"
-                                        value="14"></div>
-                                <div class="col"><input type="number" class="form-control" id="a_max" placeholder="Max"
-                                        value="18"></div>
-                            </div>
-                            <hr>
-                            <h6>Degradation Coeffs (beta)</h6>
-                            <div class="row">
-                                <div class="col"><input type="number" step="0.01" class="form-control" id="beta1"
-                                        placeholder="Min" value="0.90"></div>
-                                <div class="col"><input type="number" step="0.01" class="form-control" id="beta2"
-                                        placeholder="Max" value="0.99"></div>
-                            </div>
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="radio" name="distType" id="distUniform"
-                                    value="uniform" checked>
-                                <label class="form-check-label" for="distUniform">Uniform Distribution</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="distType" id="distConc"
-                                    value="concentrated">
-                                <label class="form-check-label" for="distConc">Concentrated Distribution</label>
-                            </div>
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <header class="main-header">
+                <h1>Оптимизация переработки свёклы</h1>
+                <p class="subtitle">Система поддержки принятия решений для оптимизации переработки сахарной свёклы</p>
+            </header>
 
-                            <hr>
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="enableRipening">
-                                <label class="form-check-label" for="enableRipening">Enable Ripening</label>
+            <!-- Configuration Section -->
+            <section id="config-section" class="content-section active">
+                <div class="section-header">
+                    <h2>Настройки</h2>
+                    <p>Настройка параметров модели деградации свёклы</p>
+                </div>
+                <div class="cards-grid">
+                    <div class="card-modern">
+                        <div class="card-header-modern">
+                            <h3>Основные параметры</h3>
+                        </div>
+                        <div class="card-body-modern">
+                            <form id="configForm">
+                                <div class="form-group">
+                                    <label>Количество партий (n)</label>
+                                    <input type="number" class="form-control-modern" id="n" value="5">
+                                </div>
+                                <div class="form-group">
+                                    <label>Масса партии (M)</label>
+                                    <input type="number" class="form-control-modern" id="m" value="1000">
+                                </div>
+                                <div class="form-group">
+                                    <label>Начальная сахаристость (a)</label>
+                                    <div class="input-group-modern">
+                                        <input type="number" class="form-control-modern" id="a_min" placeholder="Мин" value="14">
+                                        <span class="input-separator">-</span>
+                                        <input type="number" class="form-control-modern" id="a_max" placeholder="Макс" value="18">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Коэффициенты деградации (β)</label>
+                                    <div class="input-group-modern">
+                                        <input type="number" step="0.01" class="form-control-modern" id="beta1" placeholder="Мин" value="0.90">
+                                        <span class="input-separator">-</span>
+                                        <input type="number" step="0.01" class="form-control-modern" id="beta2" placeholder="Макс" value="0.99">
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card-modern">
+                        <div class="card-header-modern">
+                            <h3>Распределение коэффициентов</h3>
+                        </div>
+                        <div class="card-body-modern">
+                            <div class="form-group">
+                                <div class="radio-group">
+                                    <label class="radio-label">
+                                        <input type="radio" name="distType" id="distUniform" value="uniform" checked>
+                                        <span>Равномерное распределение</span>
+                                    </label>
+                                    <label class="radio-label">
+                                        <input type="radio" name="distType" id="distConc" value="concentrated">
+                                        <span>Концентрированное распределение</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Знаменатель дельты (|β₂-β₁| / k)</label>
+                                <select class="form-control-modern" id="delta_k">
+                                    <option value="4" selected>k = 4 (по умолчанию)</option>
+                                    <option value="3">k = 3</option>
+                                    <option value="2">k = 2</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-modern">
+                        <div class="card-header-modern">
+                            <h3>Дозаривание</h3>
+                        </div>
+                        <div class="card-body-modern">
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="enableRipening">
+                                    <span>Включить дозаривание</span>
+                                </label>
                             </div>
                             <div id="ripeningParams" style="display:none">
                                 <div class="form-group">
-                                    <label>Ripening Stages (v)</label>
-                                    <input type="number" class="form-control" id="v" value="2">
+                                    <label>Стадии дозаривания (v)</label>
+                                    <input type="number" class="form-control-modern" id="v" value="2">
                                 </div>
                                 <div class="form-group">
-                                    <label>Max Ripening Beta</label>
-                                    <input type="number" step="0.01" class="form-control" id="beta_max" value="1.05">
+                                    <label>Максимальный β для дозаривания</label>
+                                    <input type="number" step="0.01" class="form-control-modern" id="beta_max" value="1.05">
+                                </div>
+                                <div class="form-group">
+                                    <label>Знаменатель дельты для дозаривания</label>
+                                    <select class="form-control-modern" id="delta_k_ripening">
+                                        <option value="4" selected>k = 4 (по умолчанию)</option>
+                                        <option value="3">k = 3</option>
+                                        <option value="2">k = 2</option>
+                                    </select>
                                 </div>
                             </div>
+                        </div>
+                    </div>
 
-                            <button type="button" class="btn btn-primary mt-3 btn-block" onclick="runSimulation()">1.
-                                Generate Matrices</button>
-                        </form>
+                    <div class="card-modern">
+                        <div class="card-header-modern">
+                            <h3>Потери сахара</h3>
+                        </div>
+                        <div class="card-body-modern">
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="useLosses" checked>
+                                    <span>Учитывать потери сахара</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>Функция роста редуцирующих веществ I(t)</label>
+                                <select class="form-control-modern" id="growth_base">
+                                    <option value="1.029" selected>1.029^(7j-7)</option>
+                                    <option value="1.03">1.03^(7j-7)</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                <div class="action-bar">
+                    <button type="button" class="btn-primary-modern" onclick="runSimulation()">
+                        <span>🚀</span> Сгенерировать матрицы
+                    </button>
+                </div>
+            </section>
 
-                <div class="card">
-                    <div class="card-header">Optimization</div>
-                    <div class="card-body">
-                        <button type="button" class="btn btn-success btn-block" onclick="runOptimization()" id="optBtn"
-                            disabled>2. Solve Optimization</button>
-                        <div id="optResults" class="mt-3"></div>
+            <!-- Optimization Section -->
+            <section id="optimization-section" class="content-section">
+                <div class="section-header">
+                    <h2>Оптимизация</h2>
+                    <p>Решение задачи оптимизации последовательности переработки</p>
+                </div>
+                <div class="cards-grid">
+                    <div class="card-modern">
+                        <div class="card-header-modern">
+                            <h3>Стратегии оптимизации</h3>
+                        </div>
+                        <div class="card-body-modern">
+                            <button type="button" class="btn-success-modern btn-block" onclick="runOptimization()" id="optBtn" disabled>
+                                <span>⚡</span> Решить задачу оптимизации
+                            </button>
+                            <div id="optResults" class="mt-3"></div>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="col-md-8">
-                <ul class="nav nav-tabs" id="myTab" role="tablist">
-                    <li class="nav-item">
-                        <a class="nav-link active" id="c-tab" data-toggle="tab" href="#matrixC" role="tab">Sugar Content
-                            (C)</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" id="l-tab" data-toggle="tab" href="#matrixL" role="tab">Losses (L)</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" id="s-tab" data-toggle="tab" href="#matrixS" role="tab">Net Yield
-                            (S_tilde)</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" id="b-tab" data-toggle="tab" href="#matrixB" role="tab">Coefficients (B)</a>
-                    </li>
-                </ul>
-
-                <div class="tab-content mt-2" id="myTabContent">
-                    <div class="tab-pane fade show active" id="matrixC" role="tabpanel">
-                        <div class="matrix-container" id="containerC">No data generated yet.</div>
+            <!-- Matrices Section -->
+            <section id="matrices-section" class="content-section">
+                <div class="section-header">
+                    <h2>Матрицы</h2>
+                    <p>Просмотр сгенерированных матриц состояний</p>
+                </div>
+                <div class="tabs-modern">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="matrixC">Содержание сахара (C)</button>
+                        <button class="tab-btn" data-tab="matrixL">Потери (L)</button>
+                        <button class="tab-btn" data-tab="matrixS">Чистый выход (S)</button>
+                        <button class="tab-btn" data-tab="matrixB">Коэффициенты (B)</button>
                     </div>
-                    <div class="tab-pane fade" id="matrixL" role="tabpanel">
-                        <div class="matrix-container" id="containerL">No data generated yet.</div>
-                    </div>
-                    <div class="tab-pane fade" id="matrixS" role="tabpanel">
-                        <div class="matrix-container" id="containerS">No data generated yet.</div>
-                    </div>
-                    <div class="tab-pane fade" id="matrixB" role="tabpanel">
-                        <div class="matrix-container" id="containerB">No data generated yet.</div>
+                    <div class="tab-content-modern">
+                        <div class="tab-pane-modern active" id="matrixC">
+                            <div class="matrix-container-modern" id="containerC">Данные ещё не сгенерированы.</div>
+                        </div>
+                        <div class="tab-pane-modern" id="matrixL">
+                            <div class="matrix-container-modern" id="containerL">Данные ещё не сгенерированы.</div>
+                        </div>
+                        <div class="tab-pane-modern" id="matrixS">
+                            <div class="matrix-container-modern" id="containerS">Данные ещё не сгенерированы.</div>
+                        </div>
+                        <div class="tab-pane-modern" id="matrixB">
+                            <div class="matrix-container-modern" id="containerB">Данные ещё не сгенерированы.</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results-section" class="content-section">
+                <div class="section-header">
+                    <h2>Результаты и аналитика</h2>
+                    <p>Анализ результатов оптимизации</p>
+                </div>
+                <div id="resultsContent" class="cards-grid">
+                    <div class="card-modern">
+                        <div class="card-header-modern">
+                            <h3>Информация о параметрах</h3>
+                        </div>
+                        <div class="card-body-modern" id="paramsInfo">
+                            <p class="text-muted">Сначала сгенерируйте матрицы</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
     <!-- Dependencies for Bootstrap Tabs -->
     <script>if (typeof module === 'object') { window.module = module; module = undefined; }</script>
     <script src="node_modules/jquery/dist/jquery.min.js"></script>
-    <!-- Need jquery? Bootstrap 4 needs it. Actually let's assume standard BS usage or just write custom tab logic if BS fails without jquery/popper. -->
     <script src="node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Electron doesn't install jquery by default with bootstrap unless specified. -->
-    <!-- Let's just use a simple script for tabs if needed, or assume I need to install jquery. -->
-
     <script>if (window.module) module = window.module;</script>
     <script src="renderer.js"></script>
 
     <script>
-        // Simple Tab switcher if BS fails
-        const tabs = document.querySelectorAll('.nav-link');
-        tabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
+        // Sidebar navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
                 e.preventDefault();
-                tabs.forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-pane').forEach(p => {
-                    p.classList.remove('show', 'active');
-                });
-
-                e.target.classList.add('active');
-                const targetId = e.target.getAttribute('href').substring(1);
-                const target = document.getElementById(targetId);
-                target.classList.add('show', 'active');
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+                
+                item.classList.add('active');
+                const section = item.getAttribute('data-section');
+                document.getElementById(section + '-section').classList.add('active');
             });
         });
 
+        // Tab switching for matrices
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-pane-modern').forEach(p => p.classList.remove('active'));
+                
+                btn.classList.add('active');
+                const tabId = btn.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+        // Ripening toggle
         document.getElementById('enableRipening').addEventListener('change', (e) => {
             document.getElementById('ripeningParams').style.display = e.target.checked ? 'block' : 'none';
         });

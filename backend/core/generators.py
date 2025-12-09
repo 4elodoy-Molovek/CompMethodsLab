@@ -25,45 +25,52 @@ class MatrixGenerator:
         # Determine ripening stages
         v = config.v if config.enable_ripening and config.v else 0
         
+        # Auto-calculate beta_max if not provided (recommended formula from task.md)
+        beta_max = config.beta_max
+        if config.enable_ripening and beta_max is None:
+            if n > 2:
+                beta_max = (n - 1) / (n - 2)
+            else:
+                beta_max = 1.1  # fallback for small n
+        
         for i in range(n):
             batch = batches[i]
             
-            # For each stage j from 1 to n-1 (0-based)
-            # Stage 0 is t=1 (initial). Stage 1 is t=2.
-            # b_{i, "j-1"} in formula corresponds to transition to stage j.
-            # Task: j=2..n. formula b_{i, j-1}.
-            # If j=2 (step 2), we need b_{i, 1}.
+            # For each stage j from 1 to n-1 (0-based column index)
+            # In task.md: j = 1..v-1 for ripening (1-based), j = v..n-1 for wilting (1-based)
+            # In our 0-based code: j = 1..v-1 for ripening, j = v..n-1 for wilting
+            # (j=0 is initial state, j=1..n-1 are transitions)
             
             for j in range(1, n):
                 is_ripening = False
-                if config.enable_ripening:
-                    # Ripening stages: 1 to v-1
-                    # In 0-index: j corresponds to stage j+1.
-                    # So stages 2 to v corresponds to j=1 to j=v-1.
-                    # Wait, task says: j = 1..v-1 for ripening PARAMETERS.
-                    # But b param indices are shifted?
-                    # Task: "Na etapah dozarivaniya parametry b_{ij} ... j = 1..v-1"
-                    # And "Na etapah uvyadaniya ... j = v..n-1"
-                    # These indexes likely refer to the 'step' index of the coefficient itself.
-                    # Since we are iterating j from 1 to n-1 as the column index of our matrix:
-                    # Let's map directly.
+                if config.enable_ripening and v > 0:
+                    # Ripening stages: j = 1..v-1 (0-based, matching task.md 1-based j=1..v-1)
+                    # Wilting stages: j = v..n-1 (0-based, matching task.md 1-based j=v..n-1)
                     if 1 <= j <= v - 1:
                         is_ripening = True
                 
                 # Determine range for this coefficient
-                low, high = config.beta1, config.beta2
                 if is_ripening:
-                    low, high = 1.0 + 1e-6, config.beta_max # (1, beta_max]
+                    # Ripening: b_{ij} \in (1, beta_max]
+                    low, high = 1.0 + 1e-6, beta_max
+                else:
+                    # Wilting: b_{ij} \in [beta1, beta2] \subset (0,1)
+                    low, high = config.beta1, config.beta2
                 
                 # Generate value
-                if config.distribution_type == "concentrated" and not is_ripening:
-                    # Use batch specific range
-                    # Ensure range is valid
-                    b_low = batch.beta_range_start if batch.beta_range_start else low
-                    b_high = batch.beta_range_end if batch.beta_range_end else high
-                    val = np.random.uniform(b_low, b_high)
+                if config.distribution_type == "concentrated":
+                    if is_ripening:
+                        # Use batch specific range for ripening
+                        b_low = batch.beta_range_start_ripening if batch.beta_range_start_ripening else low
+                        b_high = batch.beta_range_end_ripening if batch.beta_range_end_ripening else high
+                        val = np.random.uniform(b_low, b_high)
+                    else:
+                        # Use batch specific range for wilting
+                        b_low = batch.beta_range_start if batch.beta_range_start else low
+                        b_high = batch.beta_range_end if batch.beta_range_end else high
+                        val = np.random.uniform(b_low, b_high)
                 else:
-                    # Uniform
+                    # Uniform distribution
                     val = np.random.uniform(low, high)
                     
                 B[i, j] = val

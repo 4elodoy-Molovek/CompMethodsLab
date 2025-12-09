@@ -4,12 +4,16 @@ from .models import BeetBatch
 
 class LossModel:
     @staticmethod
-    def calculate_losses(batches: List[BeetBatch], num_stages: int) -> np.ndarray:
+    def calculate_losses(
+        batches: List[BeetBatch],
+        num_stages: int,
+        growth_base: float = 1.029,
+    ) -> np.ndarray:
         """
         Calculates matrix L (losses) and returns it.
         l_{ij} formula:
         l_{ij} = 1.1 + 0.1541(K + Na) + 0.2159 N + 0.9989 I_{ij} + 0.1967
-        I_{ij} = I_{i0} * (1.029)^(7j - 7)
+        I_{ij} = I_{i0} * (growth_base)^(7j - 7)
         where j is 1-based stage index.
         """
         n = len(batches)
@@ -29,7 +33,7 @@ class LossModel:
                 # I_{ij} calculation
                 # Power is 7j - 7 = 7(j-1). Since stage_idx is j, -> 7(stage_idx) - 7 = 7(stage_idx - 1)
                 # If stage_idx=1, power=0. Correct.
-                I_ij = I0 * (1.029 ** (7 * (stage_idx - 1)))
+                I_ij = I0 * (growth_base ** (7 * (stage_idx - 1)))
                 
                 # Loss calculation
                 l_val = 1.1 + 0.1541 * (K + Na) + 0.2159 * N + 0.9989 * I_ij + 0.1967
@@ -51,6 +55,6 @@ class LossModel:
         Task says: "c_{i1} = a_i \in [a_min, a_max]" (share).
         So C contains percentages/shares (e.g. 15%).
         If L contains percentages (e.g. 1.5%), then subtraction makes sense.
-        So we return C - L.
+        So we divide L by 100 before subtracting from C (отталкивался от комментария в мдшке "я так понимаю надо l_{ij} поделить на 100 и можно с исходной C считать")
         """
-        return C - L
+        return C - L / 100.0
