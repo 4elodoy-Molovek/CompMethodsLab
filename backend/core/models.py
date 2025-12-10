@@ -1,58 +1,191 @@
+"""
+===================================================================
+МОДЕЛИ ДАННЫХ - ОПРЕДЕЛЕНИЕ СТРУКТУР ДАННЫХ
+===================================================================
+
+НАЗНАЧЕНИЕ:
+    Этот файл содержит определения классов данных (моделей) для представления
+    партий свёклы и конфигурации эксперимента. Используется dataclass для
+    автоматической генерации методов __init__, __repr__ и т.д.
+
+СТРУКТУРА:
+    - BeetBatch: представляет одну партию свёклы со всеми её параметрами
+    - ExperimentConfig: конфигурация эксперимента (параметры генерации)
+
+ИСПОЛЬЗОВАНИЕ:
+    Эти классы используются во всех модулях проекта для передачи данных:
+    - generators.py - для генерации матриц
+    - losses.py - для расчёта потерь
+    - app.py - для валидации и обработки запросов
+
+РАСШИРЕНИЕ:
+    Чтобы добавить новый параметр:
+        1. Добавьте поле в соответствующий dataclass
+        2. Обновите генерацию в app.py (функция simulate)
+        3. Обновите валидацию в app.py (функция validate_config)
+
+ПРИМЕР ИСПОЛЬЗОВАНИЯ:
+    # Создание партии
+    batch = BeetBatch(
+        index=0,
+        initial_sugar=0.15,
+        k=5.5,
+        na=0.5,
+        n_content=2.0,
+        i0=0.63
+    )
+    
+    # Создание конфигурации
+    config = ExperimentConfig(
+        n=10,
+        m=1000.0,
+        a_min=0.10,
+        a_max=0.20,
+        beta1=0.85,
+        beta2=0.95,
+        distribution_type="uniform"
+    )
+
+АВТОР: [Ваше имя]
+ДАТА СОЗДАНИЯ: [Дата]
+===================================================================
+"""
+
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 @dataclass
 class BeetBatch:
+    """
+    Класс, представляющий одну партию сахарной свёклы.
+    
+    ОСНОВНЫЕ ПАРАМЕТРЫ (обязательные):
+        index: int - номер партии (0-based, от 0 до n-1)
+        initial_sugar: float - начальная сахаристость a_i ∈ [a_min, a_max]
+        k: float - содержание калия K_i ∈ [4.8; 7.05]
+        na: float - содержание натрия Na_i ∈ [0.21; 0.82]
+        n_content: float - содержание азота N_i ∈ [1.58; 2.8]
+        i0: float - начальный индекс I_i0 ∈ [0.62; 0.64]
+    
+    ПАРАМЕТРЫ ДЛЯ КОНЦЕНТРИРОВАННОГО РАСПРЕДЕЛЕНИЯ (опциональные):
+        Используются только если distribution_type == "concentrated"
+        
+        Для увядания (wilting):
+            delta: float - константа δ_i для партии
+            beta_range_start: float - начало диапазона β_i^1
+            beta_range_end: float - конец диапазона β_i^2
+        
+        Для дозаривания (ripening):
+            delta_ripening: float - константа для дозаривания
+            beta_range_start_ripening: float - начало диапазона для дозаривания
+            beta_range_end_ripening: float - конец диапазона для дозаривания
+    
+    МАТЕМАТИЧЕСКОЕ ОПИСАНИЕ:
+        См. task.md для полного описания модели.
+        Параметры используются в формулах:
+        - c_{i1} = a_i (начальное содержание сахара)
+        - l_{ij} = 1.1 + 0.1541(K_i + Na_i) + 0.2159*N_i + 0.9989*I_{ij} + 0.1967
+        - I_{ij} = I_{i0} * (1.029)^(7j - 7)
+    """
     index: int
-    initial_sugar: float  # a_i
-    k: float              # K_i
-    na: float             # Na_i
-    n_content: float      # N_i
-    i0: float             # I_i0
+    initial_sugar: float  # a_i - начальная сахаристость
+    k: float              # K_i - содержание калия
+    na: float             # Na_i - содержание натрия
+    n_content: float      # N_i - содержание азота
+    i0: float             # I_i0 - начальный индекс
     
-    # Optional parameters for concentrated distribution (wilting)
+    # Опциональные параметры для концентрированного распределения (увядание)
+    # Используются только если distribution_type == "concentrated"
     delta: Optional[float] = None
-    beta_range_start: Optional[float] = None  # beta_i^1
-    beta_range_end: Optional[float] = None    # beta_i^2
+    beta_range_start: Optional[float] = None  # beta_i^1 - начало диапазона
+    beta_range_end: Optional[float] = None    # beta_i^2 - конец диапазона
     
-    # Optional parameters for concentrated distribution (ripening)
+    # Опциональные параметры для концентрированного распределения (дозаривание)
+    # Используются только если distribution_type == "concentrated" и enable_ripening == True
     delta_ripening: Optional[float] = None
     beta_range_start_ripening: Optional[float] = None
     beta_range_end_ripening: Optional[float] = None
 
 @dataclass
 class ExperimentConfig:
-    n: int  # Number of batches
-    m: float # Mass per batch
+    """
+    Класс конфигурации эксперимента.
     
-    # Global ranges for random generation
-    a_min: float
-    a_max: float
+    Содержит все параметры, необходимые для генерации партий свёклы
+    и расчёта матриц состояний.
     
-    # Degradation parameters
-    beta1: float
-    beta2: float
-    distribution_type: str # "uniform" or "concentrated"
+    ОСНОВНЫЕ ПАРАМЕТРЫ:
+        n: int - количество партий свёклы
+        m: float - масса одной партии (в единицах массы)
     
-    # Ripening parameters
-    enable_ripening: bool = False
-    v: Optional[int] = None # Number of ripening stages
-    beta_max: Optional[float] = None # Max coefficient for ripening
+    ПАРАМЕТРЫ НАЧАЛЬНОЙ САХАРИСТОСТИ:
+        a_min: float - минимальная начальная сахаристость
+        a_max: float - максимальная начальная сахаристость
+        Условие: a_min < a_max
+    
+    ПАРАМЕТРЫ ДЕГРАДАЦИИ (увядание):
+        beta1: float - минимальный коэффициент деградации для увядания
+        beta2: float - максимальный коэффициент деградации для увядания
+        Условие: 0 < beta1 < beta2 < 1
+        distribution_type: str - тип распределения коэффициентов
+            "uniform" - равномерное распределение на [beta1, beta2]
+            "concentrated" - концентрированное распределение
+    
+    ПАРАМЕТРЫ ДОЗАРИВАНИЯ (опционально):
+        enable_ripening: bool - включить ли процесс дозаривания
+        v: int - количество этапов дозаривания (2 ≤ v ≤ [n/2])
+        beta_max: float - максимальный коэффициент для дозаривания (> 1)
+            Если не указан, вычисляется автоматически: (n-1)/(n-2)
+    
+    ПАРАМЕТРЫ ПОТЕРЬ:
+        use_losses: bool - учитывать ли потери сахара при переработке
+        growth_base: float - база роста для расчёта индекса I_{ij}
+            Допустимые значения: 1.029 или 1.03
+    
+    ПАРАМЕТРЫ КОНЦЕНТРИРОВАННОГО РАСПРЕДЕЛЕНИЯ:
+        delta_k: float - знаменатель для вычисления максимального delta
+            Для увядания: delta_i ≤ |beta2 - beta1| / delta_k
+            Допустимые значения: 2, 3, 4
+        delta_k_ripening: float - то же для дозаривания
+            Для дозаривания: delta_i ≤ |beta_max - 1| / delta_k_ripening
+    
+    ДИАПАЗОНЫ ПАРАМЕТРОВ ДЛЯ ГЕНЕРАЦИИ ПОТЕРЬ:
+        k_min, k_max: float - диапазон содержания калия [4.8; 7.05]
+        na_min, na_max: float - диапазон содержания натрия [0.21; 0.82]
+        n_content_min, n_content_max: float - диапазон содержания азота [1.58; 2.8]
+        i0_min, i0_max: float - диапазон начального индекса [0.62; 0.64]
+    """
+    n: int  # Количество партий
+    m: float # Масса одной партии
+    
+    # Глобальные диапазоны для случайной генерации
+    a_min: float  # Минимальная начальная сахаристость
+    a_max: float  # Максимальная начальная сахаристость
+    
+    # Параметры деградации (увядание)
+    beta1: float  # Минимальный коэффициент деградации (увядание)
+    beta2: float  # Максимальный коэффициент деградации (увядание)
+    distribution_type: str  # Тип распределения: "uniform" или "concentrated"
+    
+    # Параметры дозаривания (опционально)
+    enable_ripening: bool = False  # Включить дозаривание
+    v: Optional[int] = None  # Количество этапов дозаривания
+    beta_max: Optional[float] = None  # Максимальный коэффициент для дозаривания
 
-    # Losses and growth model
-    use_losses: bool = True
-    growth_base: float = 1.029
+    # Потери и модель роста
+    use_losses: bool = True  # Учитывать потери сахара
+    growth_base: float = 1.029  # База роста для расчёта индекса I_{ij}
 
-    # Concentrated distribution control (delta bounds)
-    delta_k: float = 4.0  # denominator for |beta2 - beta1| / k (wilting)
-    delta_k_ripening: float = 4.0  # denominator for |beta_max - 1| / k (ripening)
+    # Управление концентрированным распределением (границы delta)
+    delta_k: float = 4.0  # Знаменатель для |beta2 - beta1| / k (увядание)
+    delta_k_ripening: float = 4.0  # Знаменатель для |beta_max - 1| / k (дозаривание)
     
-    # Loss parameter ranges
-    k_min: float = 4.8
-    k_max: float = 7.05
-    na_min: float = 0.21
-    na_max: float = 0.82
-    n_content_min: float = 1.58
-    n_content_max: float = 2.8
-    i0_min: float = 0.62
-    i0_max: float = 0.64
+    # Диапазоны параметров для генерации потерь
+    k_min: float = 4.8  # Минимальное содержание калия
+    k_max: float = 7.05  # Максимальное содержание калия
+    na_min: float = 0.21  # Минимальное содержание натрия
+    na_max: float = 0.82  # Максимальное содержание натрия
+    n_content_min: float = 1.58  # Минимальное содержание азота
+    n_content_max: float = 2.8  # Максимальное содержание азота
+    i0_min: float = 0.62  # Минимальный начальный индекс
+    i0_max: float = 0.64  # Максимальный начальный индекс
