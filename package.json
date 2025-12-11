@@ -1,18 +1,67 @@
 {
-    "name": "python-electron-app",
+    "name": "beet-optimization-lab",
     "version": "1.0.0",
     "main": "main.js",
     "scripts": {
-        "start": "./start_web.sh",
+        "start": "start_web.bat",
+        "start:web": "start_web.bat",
         "start:electron": "electron .",
+        "build:python": "python -m PyInstaller backend/app.spec",
+        "build:electron": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& set WIN_CSC_LINK=&& electron-builder --win portable --config.win.sign=false",
+        "build:electron:portable": "set CSC_IDENTITY_AUTO_DISCOVERY=false&& set WIN_CSC_LINK=&& electron-builder --win portable --config.win.sign=false",
+        "build:clean": "rmdir /s /q \"%LOCALAPPDATA%\\electron-builder\\Cache\\winCodeSign\" 2>nul && echo winCodeSign cache cleared || echo No cache to clear",
+        "build:packager": "npx electron-packager . \"Beet Optimization Lab\" --platform=win32 --arch=x64 --out=dist --overwrite --ignore=\"backend/(?!dist)\" --ignore=\"backend/__pycache__\" --ignore=\"backend/tests\"",
+        "build": "npm run build:python && npm run build:electron",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "keywords": [],
     "author": "",
     "license": "ISC",
-    "description": "",
+    "description": "Beet Processing Optimization Lab - Система поддержки принятия решений",
+    "build": {
+        "appId": "com.beetlab.optimization",
+        "productName": "Beet Optimization Lab",
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "main.js",
+            "index.html",
+            "renderer.js",
+            "style.css",
+            "node_modules/**/*",
+            "!backend/**/*.py",
+            "!backend/tests/**/*",
+            "!backend/__pycache__/**/*",
+            "!backend/*.spec"
+        ],
+        "extraResources": [
+            {
+                "from": "backend/dist/backend.exe",
+                "to": "backend/backend.exe",
+                "filter": ["**/*"]
+            }
+        ],
+        "win": {
+            "target": [
+                {
+                    "target": "portable",
+                    "arch": ["x64"]
+                }
+            ],
+            "sign": false,
+            "verifyUpdateCodeSignature": false
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true
+        }
+    },
     "devDependencies": {
-        "electron": "^39.2.6"
+        "electron": "^39.2.6",
+        "electron-builder": "^24.9.1"
     },
     "dependencies": {
         "jquery": "^3.7.1"

@@ -1,5 +1,34 @@
-node_modules/
+# Python
 __pycache__/
-*.pyc
-.env
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Backend build
+backend/dist/
+backend/build/
+backend/*.spec.bak
+
+# Electron
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
 backend.log
+*.log

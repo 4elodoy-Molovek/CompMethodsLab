@@ -1,15 +1,81 @@
+"""
+===================================================================
+МОДЕЛЬ ПОТЕРЬ - РАСЧЁТ ПОТЕРЬ САХАРА ПРИ ПЕРЕРАБОТКЕ
+===================================================================
+
+НАЗНАЧЕНИЕ:
+    Этот модуль содержит класс LossModel для расчёта потерь сахара
+    при переработке партий свёклы и формирования итоговой матрицы
+    состояний после учёта потерь.
+
+МАТЕМАТИЧЕСКАЯ МОДЕЛЬ:
+    Матрица потерь L:
+        l_{ij} = 1.1 + 0.1541 × (K_i + Na_i) + 0.2159 × N_i + 0.9989 × I_{ij} + 0.1967
+    
+    где:
+        K_i - содержание калия в партии i
+        Na_i - содержание натрия в партии i
+        N_i - содержание азота в партии i
+        I_{ij} = I_{i0} × (growth_base)^(7j - 7)
+            I_{i0} - начальный индекс партии i
+            growth_base - база роста (обычно 1.029 или 1.03)
+            j - номер этапа (1-based, т.е. j = 1, 2, ..., n)
+            7 - количество дней в одном этапе
+    
+    Итоговая матрица состояний:
+        S̃ = C - L/100
+    
+    где:
+        C - матрица содержания сахара (до учёта потерь)
+        L - матрица потерь (в процентах)
+        S̃ - итоговая матрица (после учёта потерь)
+
+ВАЖНО:
+    - Потери l_{ij} задаются в процентах (%)
+    - Перед вычитанием из C нужно разделить L на 100
+    - Это соответствует формуле из task.md
+
+ИСПОЛЬЗОВАНИЕ:
+    from core.losses import LossModel
+    
+    # Расчёт матрицы потерь
+    L = LossModel.calculate_losses(batches, num_stages=10, growth_base=1.029)
+    
+    # Расчёт итоговой матрицы
+    S_tilde = LossModel.calculate_final_yield_matrix(C, L)
+
+ПАРАМЕТРЫ:
+    batches: List[BeetBatch] - список партий свёклы
+    num_stages: int - количество этапов переработки (обычно n)
+    growth_base: float - база роста (1.029 или 1.03)
+
+РАСШИРЕНИЕ:
+    Чтобы изменить формулу потерь:
+        1. Модифицируйте метод calculate_losses()
+        2. Убедитесь, что единицы измерения согласованы
+        3. Обновите комментарии и документацию
+
+АВТОР: [Ваше имя]
+ДАТА СОЗДАНИЯ: [Дата]
+===================================================================
+"""
+
 import numpy as np
 from typing import List
 from .models import BeetBatch
 
 class LossModel:
     @staticmethod
-    def calculate_losses(batches: List[BeetBatch], num_stages: int) -> np.ndarray:
+    def calculate_losses(
+        batches: List[BeetBatch],
+        num_stages: int,
+        growth_base: float = 1.029,
+    ) -> np.ndarray:
         """
         Calculates matrix L (losses) and returns it.
         l_{ij} formula:
         l_{ij} = 1.1 + 0.1541(K + Na) + 0.2159 N + 0.9989 I_{ij} + 0.1967
-        I_{ij} = I_{i0} * (1.029)^(7j - 7)
+        I_{ij} = I_{i0} * (growth_base)^(7j - 7)
         where j is 1-based stage index.
         """
         n = len(batches)
@@ -29,7 +95,7 @@ class LossModel:
                 # I_{ij} calculation
                 # Power is 7j - 7 = 7(j-1). Since stage_idx is j, -> 7(stage_idx) - 7 = 7(stage_idx - 1)
                 # If stage_idx=1, power=0. Correct.
-                I_ij = I0 * (1.029 ** (7 * (stage_idx - 1)))
+                I_ij = I0 * (growth_base ** (7 * (stage_idx - 1)))
                 
                 # Loss calculation
                 l_val = 1.1 + 0.1541 * (K + Na) + 0.2159 * N + 0.9989 * I_ij + 0.1967
@@ -51,6 +117,6 @@ class LossModel:
         Task says: "c_{i1} = a_i \in [a_min, a_max]" (share).
         So C contains percentages/shares (e.g. 15%).
         If L contains percentages (e.g. 1.5%), then subtraction makes sense.
-        So we return C - L.
+        So we divide L by 100 before subtracting from C (отталкивался от комментария в мдшке "я так понимаю надо l_{ij} поделить на 100 и можно с исходной C считать")
         """
-        return C - L
+        return C - L / 100.0
