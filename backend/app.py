@@ -368,22 +368,22 @@ def optimize():
         }
 
         # 5. T(1)G
-        perm_t1g, yield_t1g = Optimizer.optimize_tkg(S_tilde, k=1, nu=nu)
-        results['t1g'] = {
-            'permutation': [int(x) for x in perm_t1g],
-            'yield': float(yield_t1g),
-            'final_mass': float(Optimizer.calculate_final_mass(yield_t1g, mass_per_batch))
-        }
+        # perm_t1g, yield_t1g = Optimizer.optimize_tkg(S_tilde, k=1, nu=nu)
+        # results['t1g'] = {
+        #     'permutation': [int(x) for x in perm_t1g],
+        #     'yield': float(yield_t1g),
+        #     'final_mass': float(Optimizer.calculate_final_mass(yield_t1g, mass_per_batch))
+        # }
 
-        # 6. Gk strategies
-        for k in [5, 10, 20]:
-            if k <= n:
-                perm_gk, yield_gk = Optimizer.optimize_gk(S_tilde, k)
-                results[f'g{k}'] = {
-                    'permutation': [int(x) for x in perm_gk],
-                    'yield': float(yield_gk),
-                    'final_mass': float(Optimizer.calculate_final_mass(yield_gk, mass_per_batch))
-                }
+        #6. Gk strategies
+        # for k in [5, 10, 20]:
+        #     if k <= n:
+        #         perm_gk, yield_gk = Optimizer.optimize_gk(S_tilde, k)
+        #         results[f'g{k}'] = {
+        #             'permutation': [int(x) for x in perm_gk],
+        #             'yield': float(yield_gk),
+        #             'final_mass': float(Optimizer.calculate_final_mass(yield_gk, mass_per_batch))
+        #         }
 
         # 7. Hungarian (optimal) - обернём вызов, если может падать
         try:
@@ -402,13 +402,27 @@ def optimize():
             }
             yield_hungarian = 0.0
 
-        # 8. Random
-        # perm_random, yield_random = Optimizer.optimize_random(S_tilde)
-        # results['random'] = {
-        #     'permutation': [int(x) for x in perm_random],
-        #     'yield': float(yield_random),
-        #     'final_mass': float(Optimizer.calculate_final_mass(yield_random, mass_per_batch))
-        # }
+        # 8. notoptimal
+
+        try:
+            perm_hungarian_min, yield_hungarian_min = Optimizer.optimize_hungarian_min(S_tilde)
+            results['notoptimal'] = {
+                'permutation': [int(x) for x in perm_hungarian_min],
+                'yield': float(yield_hungarian_min),
+                'final_mass': float(Optimizer.calculate_final_mass(yield_hungarian_min, mass_per_batch))
+            }
+        
+        except Exception as e:
+            app.logger.warning("Hungarian min optimization failed: %s", e)
+            results['notoptimal'] = {
+                'permutation': list(range(n)),
+                'yield': 0.0,
+                'final_mass': 0.0
+            }
+            yield_hungarian = 0.0
+
+
+
 
         # relative losses vs optimal
         yield_hungarian = locals().get('yield_hungarian', results.get('optimal', {}).get('yield', 0.0))

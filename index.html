@@ -29,10 +29,10 @@
                     <span class="nav-icon">📋</span>
                     <span class="nav-label">Матрицы</span>
                 </a>
-                <a href="#" class="nav-item" data-section="results">
+                <!-- <a href="#" class="nav-item" data-section="results">
                     <span class="nav-icon">📈</span>
                     <span class="nav-label">Результаты</span>
-                </a>
+                </a> -->
             </nav>
         </aside>
 
@@ -65,7 +65,7 @@
                                     <input type="number" class="form-control-modern" id="m" value="3000">
                                 </div>
                                 <div class="form-group">
-                                    <label>Начальная сахаристость (a)</label>
+                                    <label>Начальная сахаристость в % (a)</label>
                                     <div class="input-group-modern">
                                         <input type="number" class="form-control-modern" id="a_min" placeholder="Мин" value="12">
                                         <span class="input-separator">-</span>
@@ -112,7 +112,7 @@
                         </div>
                     </div>
 
-                    <div class="card-modern">
+                    <!-- <div class="card-modern">
                         <div class="card-header-modern">
                             <h3>Дозаривание</h3>
                         </div>
@@ -142,7 +142,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div> -->
 
                     <div class="card-modern">
                         <div class="card-header-modern">
@@ -224,7 +224,7 @@
             </section>
 
             <!-- Results Section -->
-            <section id="results-section" class="content-section">
+            <!--<section id="results-section" class="content-section">
                 <div class="section-header">
                     <h2>Результаты и аналитика</h2>
                     <p>Анализ результатов оптимизации</p>
@@ -239,7 +239,7 @@
                         </div>
                     </div>
                 </div>
-            </section>
+            </section>-->
         </main>
     </div>
 
@@ -277,9 +277,7 @@
         });
 
         // Ripening toggle
-        document.getElementById('enableRipening').addEventListener('change', (e) => {
-            document.getElementById('ripeningParams').style.display = e.target.checked ? 'block' : 'none';
-        });
+        
     </script>
 </body>
 
