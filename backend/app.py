@@ -242,10 +242,10 @@ def simulate():
             max_delta = abs(config.beta2 - config.beta1) / config.delta_k
             delta_i = np.random.uniform(0, max_delta)
             
-            # center in [beta1 + delta, beta2 - delta]
-            center = np.random.uniform(config.beta1 + delta_i, config.beta2 - delta_i)
-            b_start = center - delta_i
-            b_end = center + delta_i
+            
+            
+            b_start = np.random.uniform(config.beta1, config.beta2 - delta_i)
+            b_end = b_start + delta_i
             
             delta = delta_i
         
@@ -403,12 +403,12 @@ def optimize():
             yield_hungarian = 0.0
 
         # 8. Random
-        perm_random, yield_random = Optimizer.optimize_random(S_tilde)
-        results['random'] = {
-            'permutation': [int(x) for x in perm_random],
-            'yield': float(yield_random),
-            'final_mass': float(Optimizer.calculate_final_mass(yield_random, mass_per_batch))
-        }
+        # perm_random, yield_random = Optimizer.optimize_random(S_tilde)
+        # results['random'] = {
+        #     'permutation': [int(x) for x in perm_random],
+        #     'yield': float(yield_random),
+        #     'final_mass': float(Optimizer.calculate_final_mass(yield_random, mass_per_batch))
+        # }
 
         # relative losses vs optimal
         yield_hungarian = locals().get('yield_hungarian', results.get('optimal', {}).get('yield', 0.0))

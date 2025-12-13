@@ -76,9 +76,9 @@ async function runOptimization() {
 
         // Sort strategies by yield (descending) for better visualization
         const strategies = Object.entries(data).sort((a, b) => b[1].yield - a[1].yield);
-        
+        console.log("Hello");
         const strategyNames = {
-            'optimal': 'Оптимальная (Венгерский алгоритм)',
+            'optimal': 'Венгерский максимальный',
             'greedy': 'Жадная (G1)',
             'g5': 'G5 (жадная вариация)',
             'g10': 'G10 (жадная вариация)',
@@ -108,25 +108,31 @@ async function runOptimization() {
         // Show optimal first
         if (data.optimal) {
             html += `<div class="alert ${strategyColors['optimal'] || 'alert-info'}">`;
-            html += `<strong>⭐ ${strategyNames['optimal']}</strong><br>`;
+            html += `<strong> ${strategyNames['optimal']}</strong><br>`;
             html += `Выход (S(σ)): <b>${data.optimal.yield.toFixed(2)}</b> (максимум)<br>`;
             html += `Итоговая масса: <b>${data.optimal.final_mass.toFixed(2)}</b> (S(σ) × M × d, где d=7 дней)<br>`;
             html += `Порядок партий: `;
             html += visualizeSequence(data.optimal.permutation, data.optimal.yield, currentMatrixS);
             html += `</div>`;
         }
-        
+        let flag = 1
         // Show other strategies
         for (const [key, result] of strategies) {
             if (key === 'optimal') continue;
-            
             const name = strategyNames[key] || key;
             const color = strategyColors[key] || 'alert-secondary';
             const loss = result.relative_loss_percent ? 
                 ` (потери: ${result.relative_loss_percent.toFixed(2)}% от оптимальной)` : '';
-            
-            html += `<div class="alert ${color}">`;
-            html += `<strong>${name}</strong>${loss}<br>`;
+            if (flag) {
+                flag = 0;
+                html += `<div class="alert ${strategyColors['optimal'] || 'alert-info'}">`;
+                html += `<strong>⭐ Оптимальный алгоритм: <br>`;
+                html += ` ${name}</strong>${loss}<br>`;
+            }
+            else {
+                html += `<div class="alert ${color}">`;
+                html += `<strong>${name}</strong>${loss}<br>`;
+            }
             html += `Выход (S(σ)): <b>${result.yield.toFixed(2)}</b><br>`;
             html += `Итоговая масса: <b>${result.final_mass.toFixed(2)}</b> (S(σ) × M × d, где d=7 дней)<br>`;
             html += `Порядок партий: `;
@@ -135,6 +141,8 @@ async function runOptimization() {
         }
 
         document.getElementById('optResults').innerHTML = html;
+
+        console.log(data);
 
     } catch (e) {
         alert("Ошибка оптимизации: " + e.message);

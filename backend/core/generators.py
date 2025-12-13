@@ -95,7 +95,7 @@ class MatrixGenerator:
             # In our 0-based code: j = 1..v-1 for ripening, j = v..n-1 for wilting
             # (j=0 is initial state, j=1..n-1 are transitions)
             
-            for j in range(1, n):
+            for j in range(0, n-1):
                 is_ripening = False
                 if config.enable_ripening and v > 0:
                     # Ripening stages: j = 1..v-1 (0-based, matching task.md 1-based j=1..v-1)
@@ -149,6 +149,6 @@ class MatrixGenerator:
         # Subsequent states
         for j in range(1, n):
             for i in range(n):
-                C[i, j] = C[i, j-1] * B[i, j]
+                C[i, j] = C[i, j-1] * B[i, j-1]
                 
         return C

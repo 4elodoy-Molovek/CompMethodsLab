@@ -98,7 +98,7 @@ class Optimizer:
         Calculates final product mass according to task.md:
         S = S(σ) × M × d, where d is number of days per stage (7).
         """
-        return yield_value * mass_per_batch * days_per_stage
+        return (yield_value / 100.0) * mass_per_batch * days_per_stage
 
     @staticmethod
     def optimize_thrifty(S_matrix: np.ndarray) -> Tuple[List[int], float]:
