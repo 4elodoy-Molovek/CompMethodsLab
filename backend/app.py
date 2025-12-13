@@ -24,7 +24,7 @@ FLASK BACKEND API - ГЛАВНЫЙ ФАЙЛ ПРИЛОЖЕНИЯ
 
 КАК ЗАПУСТИТЬ:
     1. Установите зависимости: pip install -r requirements.txt
-    2. Запустите сервер: python app.py
+    2. Запустите сервер: 
     3. Сервер будет доступен на http://localhost:5000
     4. Frontend автоматически запускает этот сервер при старте
 
@@ -242,10 +242,10 @@ def simulate():
             max_delta = abs(config.beta2 - config.beta1) / config.delta_k
             delta_i = np.random.uniform(0, max_delta)
             
-            # center in [beta1 + delta, beta2 - delta]
-            center = np.random.uniform(config.beta1 + delta_i, config.beta2 - delta_i)
-            b_start = center - delta_i
-            b_end = center + delta_i
+            
+            
+            b_start = np.random.uniform(config.beta1, config.beta2 - delta_i)
+            b_end = b_start + delta_i
             
             delta = delta_i
         
@@ -303,93 +303,143 @@ def simulate():
         'batches': [vars(b) for b in batches]
     })
 
+
+def to_native(obj):
+    """
+    Рекурсивно конвертирует объекты в JSON-сериализуемые:
+    - np.ndarray -> list
+    - np.generic (np.int64, np.float64, ...) -> Python int/float via .item()
+    - list/tuple/dict -> обрабатывает рекурсивно
+    """
+    if isinstance(obj, np.generic):
+        return obj.item()
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, dict):
+        return {to_native(k): to_native(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [to_native(i) for i in obj]
+    return obj
+
+
+
 @app.route('/optimize', methods=['POST'])
 def optimize():
-    data = request.json
-    S_tilde = np.array(data['matrix'])
-    mass_per_batch = data.get('mass_per_batch', 1000.0)  # Default M if not provided
-    
-    n = S_tilde.shape[0]
-    nu = n // 2  # Default nu = [n/2]
-    
-    results = {}
-    
-    # 1. Greedy (Жадная)
-    perm_greedy, yield_greedy = Optimizer.optimize_greedy(S_tilde)
-    results['greedy'] = {
-        'permutation': perm_greedy,
-        'yield': yield_greedy,
-        'final_mass': Optimizer.calculate_final_mass(yield_greedy, mass_per_batch)
-    }
-    
-    # 2. Thrifty (Бережливая)
-    perm_thrifty, yield_thrifty = Optimizer.optimize_thrifty(S_tilde)
-    results['thrifty'] = {
-        'permutation': perm_thrifty,
-        'yield': yield_thrifty,
-        'final_mass': Optimizer.calculate_final_mass(yield_thrifty, mass_per_batch)
-    }
-    
-    # 3. Thrifty/Greedy (Бережливая/жадная)
-    perm_tg, yield_tg = Optimizer.optimize_thrifty_greedy(S_tilde, nu)
-    results['thrifty_greedy'] = {
-        'permutation': perm_tg,
-        'yield': yield_tg,
-        'final_mass': Optimizer.calculate_final_mass(yield_tg, mass_per_batch)
-    }
-    
-    # 4. Greedy/Thrifty (Жадная/бережливая)
-    perm_gt, yield_gt = Optimizer.optimize_greedy_thrifty(S_tilde, nu)
-    results['greedy_thrifty'] = {
-        'permutation': perm_gt,
-        'yield': yield_gt,
-        'final_mass': Optimizer.calculate_final_mass(yield_gt, mass_per_batch)
-    }
-    
-    # 5. T(1)G (Б1Ж - бережливая/жадная, same as #3 but explicit)
-    perm_t1g, yield_t1g = Optimizer.optimize_tkg(S_tilde, k=1, nu=nu)
-    results['t1g'] = {
-        'permutation': perm_t1g,
-        'yield': yield_t1g,
-        'final_mass': Optimizer.calculate_final_mass(yield_t1g, mass_per_batch)
-    }
-    
-    # 6. Gk strategies (variations of greedy)
-    # G1 = greedy (already done)
-    # G5, G10, G20 for comparison
-    for k in [5, 10, 20]:
-        if k <= n:
-            perm_gk, yield_gk = Optimizer.optimize_gk(S_tilde, k)
-            results[f'g{k}'] = {
-                'permutation': perm_gk,
-                'yield': yield_gk,
-                'final_mass': Optimizer.calculate_final_mass(yield_gk, mass_per_batch)
+    try:
+        data = request.json
+        S_tilde = np.array(data['matrix'])
+        mass_per_batch = data.get('mass_per_batch', 1000.0)
+
+        n = S_tilde.shape[0]
+        nu = n // 2
+
+        results = {}
+
+        # 1. Greedy
+        perm_greedy, yield_greedy = Optimizer.optimize_greedy(S_tilde)
+        results['greedy'] = {
+            'permutation': [int(x) for x in perm_greedy],
+            'yield': float(yield_greedy),
+            'final_mass': float(Optimizer.calculate_final_mass(yield_greedy, mass_per_batch))
+        }
+
+        # 2. Thrifty
+        perm_thrifty, yield_thrifty = Optimizer.optimize_thrifty(S_tilde)
+        results['thrifty'] = {
+            'permutation': [int(x) for x in perm_thrifty],
+            'yield': float(yield_thrifty),
+            'final_mass': float(Optimizer.calculate_final_mass(yield_thrifty, mass_per_batch))
+        }
+
+        # 3. Thrifty/Greedy
+        perm_tg, yield_tg = Optimizer.optimize_thrifty_greedy(S_tilde, nu)
+        results['thrifty_greedy'] = {
+            'permutation': [int(x) for x in perm_tg],
+            'yield': float(yield_tg),
+            'final_mass': float(Optimizer.calculate_final_mass(yield_tg, mass_per_batch))
+        }
+
+        # 4. Greedy/Thrifty
+        perm_gt, yield_gt = Optimizer.optimize_greedy_thrifty(S_tilde, nu)
+        results['greedy_thrifty'] = {
+            'permutation': [int(x) for x in perm_gt],
+            'yield': float(yield_gt),
+            'final_mass': float(Optimizer.calculate_final_mass(yield_gt, mass_per_batch))
+        }
+
+        # 5. T(1)G
+        # perm_t1g, yield_t1g = Optimizer.optimize_tkg(S_tilde, k=1, nu=nu)
+        # results['t1g'] = {
+        #     'permutation': [int(x) for x in perm_t1g],
+        #     'yield': float(yield_t1g),
+        #     'final_mass': float(Optimizer.calculate_final_mass(yield_t1g, mass_per_batch))
+        # }
+
+        #6. Gk strategies
+        # for k in [5, 10, 20]:
+        #     if k <= n:
+        #         perm_gk, yield_gk = Optimizer.optimize_gk(S_tilde, k)
+        #         results[f'g{k}'] = {
+        #             'permutation': [int(x) for x in perm_gk],
+        #             'yield': float(yield_gk),
+        #             'final_mass': float(Optimizer.calculate_final_mass(yield_gk, mass_per_batch))
+        #         }
+
+        # 7. Hungarian (optimal) - обернём вызов, если может падать
+        try:
+            perm_hungarian, yield_hungarian = Optimizer.optimize_hungarian(S_tilde)
+            results['optimal'] = {
+                'permutation': [int(x) for x in perm_hungarian],
+                'yield': float(yield_hungarian),
+                'final_mass': float(Optimizer.calculate_final_mass(yield_hungarian, mass_per_batch))
             }
-    
-    # 7. Hungarian (Optimal - absolute maximum)
-    perm_hungarian, yield_hungarian = Optimizer.optimize_hungarian(S_tilde)
-    results['optimal'] = {
-        'permutation': perm_hungarian,
-        'yield': yield_hungarian,
-        'final_mass': Optimizer.calculate_final_mass(yield_hungarian, mass_per_batch)
-    }
-    
-    # 8. Random (Baseline)
-    perm_random, yield_random = Optimizer.optimize_random(S_tilde)
-    results['random'] = {
-        'permutation': perm_random,
-        'yield': yield_random,
-        'final_mass': Optimizer.calculate_final_mass(yield_random, mass_per_batch)
-    }
-    
-    # Calculate relative losses compared to optimal
-    if yield_hungarian > 0:
-        for key in results:
-            if key != 'optimal':
-                relative_loss = ((yield_hungarian - results[key]['yield']) / yield_hungarian) * 100
-                results[key]['relative_loss_percent'] = relative_loss
-    
-    return jsonify(results)
+        except Exception as e:
+            app.logger.warning("Hungarian optimization failed: %s", e)
+            results['optimal'] = {
+                'permutation': list(range(n)),
+                'yield': 0.0,
+                'final_mass': 0.0
+            }
+            yield_hungarian = 0.0
+
+        # 8. notoptimal
+
+        try:
+            perm_hungarian_min, yield_hungarian_min = Optimizer.optimize_hungarian_min(S_tilde)
+            results['notoptimal'] = {
+                'permutation': [int(x) for x in perm_hungarian_min],
+                'yield': float(yield_hungarian_min),
+                'final_mass': float(Optimizer.calculate_final_mass(yield_hungarian_min, mass_per_batch))
+            }
+        
+        except Exception as e:
+            app.logger.warning("Hungarian min optimization failed: %s", e)
+            results['notoptimal'] = {
+                'permutation': list(range(n)),
+                'yield': 0.0,
+                'final_mass': 0.0
+            }
+            yield_hungarian = 0.0
+
+
+
+
+        # relative losses vs optimal
+        yield_hungarian = locals().get('yield_hungarian', results.get('optimal', {}).get('yield', 0.0))
+        if yield_hungarian and yield_hungarian > 0:
+            for key in results:
+                if key != 'optimal':
+                    relative_loss = ((yield_hungarian - results[key]['yield']) / yield_hungarian) * 100
+                    results[key]['relative_loss_percent'] = float(relative_loss)
+
+        # final conversion of any remaining numpy types
+        results_native = to_native(results)
+
+        return jsonify(results_native)
+
+    except Exception as e:
+        app.logger.exception("Optimization failed")
+        return jsonify({'error': 'Optimization failed', 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

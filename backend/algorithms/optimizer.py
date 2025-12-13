@@ -98,7 +98,7 @@ class Optimizer:
         Calculates final product mass according to task.md:
         S = S(σ) × M × d, where d is number of days per stage (7).
         """
-        return yield_value * mass_per_batch * days_per_stage
+        return (yield_value / 100.0) * mass_per_batch * days_per_stage
 
     @staticmethod
     def optimize_thrifty(S_matrix: np.ndarray) -> Tuple[List[int], float]:
@@ -396,3 +396,26 @@ class Optimizer:
             total_yield += S_matrix[row, col]
         
         return permutation, total_yield
+    
+    @staticmethod
+    def optimize_hungarian_min(S_matrix: np.ndarray) -> Tuple[List[int], float]:
+        try:
+            from scipy.optimize import linear_sum_assignment  # type: ignore
+        except ImportError:
+            # Fallback: use greedy if scipy not available
+            return Optimizer.optimize_greedy(S_matrix)
+        
+        # Hungarian algorithm solves minimization directly — no negation needed
+        row_indices, col_indices = linear_sum_assignment(S_matrix)
+        
+        n = S_matrix.shape[0]
+        permutation = [0] * n
+        total_cost = 0.0
+
+        for i in range(len(row_indices)):
+            row = row_indices[i]
+            col = col_indices[i]
+            permutation[col] = row
+            total_cost += S_matrix[row, col]
+        
+        return permutation, total_cost

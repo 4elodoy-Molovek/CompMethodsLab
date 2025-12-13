@@ -15,13 +15,13 @@ async function runSimulation() {
         beta1: parseFloat(document.getElementById('beta1').value),
         beta2: parseFloat(document.getElementById('beta2').value),
         distribution_type: document.querySelector('input[name="distType"]:checked').value,
-        enable_ripening: document.getElementById('enableRipening').checked,
-        v: parseInt(document.getElementById('v').value),
-        beta_max: parseFloat(document.getElementById('beta_max').value),
+        //enable_ripening: document.getElementById('enableRipening').checked,
+        //v: parseInt(document.getElementById('v').value),
+        //beta_max: parseFloat(document.getElementById('beta_max').value),
         use_losses: document.getElementById('useLosses').checked,
         growth_base: parseFloat(document.getElementById('growth_base').value),
         delta_k: parseInt(document.getElementById('delta_k').value),
-        delta_k_ripening: parseInt(document.getElementById('delta_k_ripening').value),
+        //delta_k_ripening: parseInt(document.getElementById('delta_k_ripening').value),
     };
 
     try {
@@ -47,11 +47,11 @@ async function runSimulation() {
         document.getElementById('optBtn').disabled = false;
         
         // Show ripening information if enabled
-        showRipeningInfo(config);
+        //showRipeningInfo(config);
         // Show distribution and delta info
-        showDistributionInfo(config, currentBatches);
+        // showDistributionInfo(config, currentBatches);
         // Update results section
-        updateResultsSection(config, currentBatches);
+        //updateResultsSection(config, currentBatches);
 
     } catch (e) {
         alert("Ошибка подключения к серверу (убедитесь, что он запущен): " + e.message);
@@ -76,14 +76,15 @@ async function runOptimization() {
 
         // Sort strategies by yield (descending) for better visualization
         const strategies = Object.entries(data).sort((a, b) => b[1].yield - a[1].yield);
-        
+        console.log("Hello");
         const strategyNames = {
-            'optimal': 'Оптимальная (Венгерский алгоритм)',
-            'greedy': 'Жадная (G1)',
+            'optimal': 'Венгерский максимальный',
+            'notoptimal': 'Венгерский минимальный',
+            'greedy': 'Жадная',
             'g5': 'G5 (жадная вариация)',
             'g10': 'G10 (жадная вариация)',
             'g20': 'G20 (жадная вариация)',
-            'thrifty_greedy': 'Бережливая/жадная (T(1)G)',
+            'thrifty_greedy': 'Бережливая/жадная',
             't1g': 'T(1)G (Б1Ж)',
             'greedy_thrifty': 'Жадная/бережливая',
             'thrifty': 'Бережливая',
@@ -92,6 +93,7 @@ async function runOptimization() {
         
         const strategyColors = {
             'optimal': 'alert-info',
+            'notoptimal': 'alert-info',
             'greedy': 'alert-success',
             'g5': 'alert-success',
             'g10': 'alert-success',
@@ -108,25 +110,41 @@ async function runOptimization() {
         // Show optimal first
         if (data.optimal) {
             html += `<div class="alert ${strategyColors['optimal'] || 'alert-info'}">`;
-            html += `<strong>⭐ ${strategyNames['optimal']}</strong><br>`;
+            html += `<strong> ${strategyNames['optimal']}</strong><br>`;
             html += `Выход (S(σ)): <b>${data.optimal.yield.toFixed(2)}</b> (максимум)<br>`;
             html += `Итоговая масса: <b>${data.optimal.final_mass.toFixed(2)}</b> (S(σ) × M × d, где d=7 дней)<br>`;
             html += `Порядок партий: `;
             html += visualizeSequence(data.optimal.permutation, data.optimal.yield, currentMatrixS);
             html += `</div>`;
         }
-        
+        if (data.notoptimal) {
+            html += `<div class="alert ${strategyColors['notoptimal'] || 'alert-info'}">`;
+            html += `<strong> ${strategyNames['notoptimal']}</strong><br>`;
+            html += `Выход (S(σ)): <b>${data.notoptimal.yield.toFixed(2)}</b> (минимум)<br>`;
+            html += `Итоговая масса: <b>${data.notoptimal.final_mass.toFixed(2)}</b> (S(σ) × M × d, где d=7 дней)<br>`;
+            html += `Порядок партий: `;
+            html += visualizeSequence(data.notoptimal.permutation, data.notoptimal.yield, currentMatrixS);
+            html += `</div>`;
+        }
+        let flag = 1
         // Show other strategies
         for (const [key, result] of strategies) {
             if (key === 'optimal') continue;
-            
+            if (key === 'notoptimal') continue;
             const name = strategyNames[key] || key;
             const color = strategyColors[key] || 'alert-secondary';
             const loss = result.relative_loss_percent ? 
                 ` (потери: ${result.relative_loss_percent.toFixed(2)}% от оптимальной)` : '';
-            
-            html += `<div class="alert ${color}">`;
-            html += `<strong>${name}</strong>${loss}<br>`;
+            if (flag) {
+                flag = 0;
+                html += `<div class="alert ${strategyColors['optimal'] || 'alert-info'}">`;
+                html += `<strong>⭐ Оптимальный алгоритм: <br>`;
+                html += ` ${name}</strong>${loss}<br>`;
+            }
+            else {
+                html += `<div class="alert ${color}">`;
+                html += `<strong>${name}</strong>${loss}<br>`;
+            }
             html += `Выход (S(σ)): <b>${result.yield.toFixed(2)}</b><br>`;
             html += `Итоговая масса: <b>${result.final_mass.toFixed(2)}</b> (S(σ) × M × d, где d=7 дней)<br>`;
             html += `Порядок партий: `;
@@ -135,6 +153,8 @@ async function runOptimization() {
         }
 
         document.getElementById('optResults').innerHTML = html;
+
+        console.log(data);
 
     } catch (e) {
         alert("Ошибка оптимизации: " + e.message);

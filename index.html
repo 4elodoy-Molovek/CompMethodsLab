@@ -29,10 +29,10 @@
                     <span class="nav-icon">📋</span>
                     <span class="nav-label">Матрицы</span>
                 </a>
-                <a href="#" class="nav-item" data-section="results">
+                <!-- <a href="#" class="nav-item" data-section="results">
                     <span class="nav-icon">📈</span>
                     <span class="nav-label">Результаты</span>
-                </a>
+                </a> -->
             </nav>
         </aside>
 
@@ -58,18 +58,18 @@
                             <form id="configForm">
                                 <div class="form-group">
                                     <label>Количество партий (n)</label>
-                                    <input type="number" class="form-control-modern" id="n" value="5">
+                                    <input type="number" class="form-control-modern" id="n" value="15">
                                 </div>
                                 <div class="form-group">
                                     <label>Масса партии (M)</label>
-                                    <input type="number" class="form-control-modern" id="m" value="1000">
+                                    <input type="number" class="form-control-modern" id="m" value="3000">
                                 </div>
                                 <div class="form-group">
-                                    <label>Начальная сахаристость (a)</label>
+                                    <label>Начальная сахаристость в % (a)</label>
                                     <div class="input-group-modern">
-                                        <input type="number" class="form-control-modern" id="a_min" placeholder="Мин" value="14">
+                                        <input type="number" class="form-control-modern" id="a_min" placeholder="Мин" value="12">
                                         <span class="input-separator">-</span>
-                                        <input type="number" class="form-control-modern" id="a_max" placeholder="Макс" value="18">
+                                        <input type="number" class="form-control-modern" id="a_max" placeholder="Макс" value="22">
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -112,7 +112,7 @@
                         </div>
                     </div>
 
-                    <div class="card-modern">
+                    <!-- <div class="card-modern">
                         <div class="card-header-modern">
                             <h3>Дозаривание</h3>
                         </div>
@@ -142,7 +142,7 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div> -->
 
                     <div class="card-modern">
                         <div class="card-header-modern">
@@ -151,7 +151,7 @@
                         <div class="card-body-modern">
                             <div class="form-group">
                                 <label class="checkbox-label">
-                                    <input type="checkbox" id="useLosses" checked>
+                                    <input type="checkbox" id="useLosses">
                                     <span>Учитывать потери сахара</span>
                                 </label>
                             </div>
@@ -224,7 +224,7 @@
             </section>
 
             <!-- Results Section -->
-            <section id="results-section" class="content-section">
+            <!--<section id="results-section" class="content-section">
                 <div class="section-header">
                     <h2>Результаты и аналитика</h2>
                     <p>Анализ результатов оптимизации</p>
@@ -239,7 +239,7 @@
                         </div>
                     </div>
                 </div>
-            </section>
+            </section>-->
         </main>
     </div>
 
@@ -277,9 +277,7 @@
         });
 
         // Ripening toggle
-        document.getElementById('enableRipening').addEventListener('change', (e) => {
-            document.getElementById('ripeningParams').style.display = e.target.checked ? 'block' : 'none';
-        });
+        
     </script>
 </body>
 
