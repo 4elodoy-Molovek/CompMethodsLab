@@ -101,7 +101,7 @@
                                     </label>
                                 </div>
                             </div>
-                            <div class="form-group">
+                            <div class="form-group" id="deltaContainer" style="display:none">
                                 <label>Знаменатель дельты (|β₂-β₁| / k)</label>
                                 <select class="form-control-modern" id="delta_k">
                                     <option value="4" selected>k = 4 (по умолчанию)</option>
@@ -277,6 +277,32 @@
         });
 
         // Ripening toggle
+
+
+        // Показать/скрыть знаменатель дельты при выборе типа распределения
+        document.addEventListener('DOMContentLoaded', function() {
+            const deltaContainer = document.getElementById('deltaContainer');
+            const uniformRadio = document.getElementById('distUniform');
+            const concRadio = document.getElementById('distConc');
+            
+            // Обработчики событий для радио-кнопок
+            uniformRadio.addEventListener('change', function() {
+                if (this.checked) {
+                    deltaContainer.style.display = 'none';
+                }
+            });
+            
+            concRadio.addEventListener('change', function() {
+                if (this.checked) {
+                    deltaContainer.style.display = 'block';
+                }
+            });
+            
+            // Проверить начальное состояние
+            if (concRadio.checked) {
+                deltaContainer.style.display = 'block';
+            }
+        });
         
     </script>
 </body>
