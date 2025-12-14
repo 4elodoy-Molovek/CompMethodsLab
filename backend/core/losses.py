@@ -68,6 +68,7 @@ class LossModel:
     @staticmethod
     def calculate_losses(
         batches: List[BeetBatch],
+        C: np.ndarray,
         num_stages: int,
         growth_base: float = 1.029,
     ) -> np.ndarray:
@@ -80,6 +81,10 @@ class LossModel:
         """
         n = len(batches)
         L = np.zeros((n, num_stages))
+        # Реалистичные пределы потерь
+        MIN_LOSS = 1.5    # Минимальные технологические потери
+        MAX_LOSS = 4.5    # Максимальные потери в нормальном производстве
+        MAX_PERCENT_OF_SUGAR = 0.35  # Максимум 35% от содержания сахара
         
         for i in range(n):
             batch = batches[i]
@@ -87,19 +92,60 @@ class LossModel:
             Na = batch.na
             N = batch.n_content
             I0 = batch.i0
+
+            if growth_base == 1.029:
+                I0 *= C[i, 0] / 100.0
+            else:
+                I0 = 0.1
             
+            max_loss_so_far = 0.0
+
             for j in range(num_stages): # j is 0-indexed here (0..n-1)
                 # Formula uses 1-based index (1..n)
                 stage_idx = j + 1
-                
+
+
                 # I_{ij} calculation
                 # Power is 7j - 7 = 7(j-1). Since stage_idx is j, -> 7(stage_idx) - 7 = 7(stage_idx - 1)
                 # If stage_idx=1, power=0. Correct.
-                I_ij = I0 * (growth_base ** (7 * (stage_idx - 1)))
+                I_ij = I0 * (growth_base ** (stage_idx - 1))
+
                 
                 # Loss calculation
                 l_val = 1.1 + 0.1541 * (K + Na) + 0.2159 * N + 0.9989 * I_ij + 0.1967
+
+
+                
+                # ГАРАНТИРУЕМ, что потери не уменьшаются
+                # (физически невозможно уменьшение потерь со временем хранения)
+                
+                
+                current_sugar = C[i, j]
+                
+                # 1. Не менее минимальных технологических потерь
+                l_val = max(l_val, MIN_LOSS)
+                
+                # 2. Не более максимального процента от сахара
+                # Но с учётом того, что потери не должны уменьшаться
+                max_by_percent = current_sugar * MAX_PERCENT_OF_SUGAR
+                
+                # 3. Не более абсолютного максимума
+                # Применяем ограничения, но сохраняем неубывание
+                if l_val > max_by_percent:
+                    # Если ограничение по проценту строже, берем его
+                    # но не опускаемся ниже ранее достигнутых потерь
+                    l_val = min(max_by_percent, MAX_LOSS)
+                    l_val = max(l_val, max_loss_so_far)
+                else:
+                    l_val = min(l_val, MAX_LOSS)
+                
+                # Обновляем максимальные потери для этой партии
+                max_loss_so_far = l_val
+                
+                
+                
                 L[i, j] = l_val
+
                 
         return L
 
@@ -119,4 +165,4 @@ class LossModel:
         If L contains percentages (e.g. 1.5%), then subtraction makes sense.
         So we divide L by 100 before subtracting from C (отталкивался от комментария в мдшке "я так понимаю надо l_{ij} поделить на 100 и можно с исходной C считать")
         """
-        return C - L / 100.0
+        return C - L

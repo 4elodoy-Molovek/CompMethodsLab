@@ -287,7 +287,7 @@ def simulate():
     B = MatrixGenerator.generate_coefficients(config, batches)
     C = MatrixGenerator.generate_states(batches, B)
     if config.use_losses:
-        L = LossModel.calculate_losses(batches, config.n, growth_base=config.growth_base)
+        L = LossModel.calculate_losses(batches, C, config.n, growth_base=config.growth_base)
         S_tilde = LossModel.calculate_final_yield_matrix(C, L)
     else:
         L = np.zeros_like(C)
