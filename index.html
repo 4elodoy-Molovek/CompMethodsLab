@@ -29,10 +29,10 @@
                     <span class="nav-icon">📋</span>
                     <span class="nav-label">Матрицы</span>
                 </a>
-                <!-- <a href="#" class="nav-item" data-section="results">
+                <a href="#" class="nav-item" data-section="results">
                     <span class="nav-icon">📈</span>
                     <span class="nav-label">Результаты</span>
-                </a> -->
+                </a>
             </nav>
         </aside>
 
@@ -224,22 +224,40 @@
             </section>
 
             <!-- Results Section -->
-            <!--<section id="results-section" class="content-section">
+            <section id="results-section" class="content-section">
                 <div class="section-header">
                     <h2>Результаты и аналитика</h2>
-                    <p>Анализ результатов оптимизации</p>
+                    <p>Анализ результатов оптимизации — графики по стратегиям</p>
                 </div>
+
+                <!-- Chart container: placed at the top, fixed height so it is fully visible without scrollbars -->
+                <div class="cards-grid">
+                    <div class="card-modern" style="width:100%;">
+                        <div class="card-header-modern">
+                            <h3>График сахаристости по этапам для алгоритмов</h3>
+                        </div>
+                        <div class="card-body-modern" style="padding: 12px 20px;">
+                            <div id="resultsChartContainer" style="width:100%; height:420px; display:flex; align-items:stretch; justify-content:stretch;">
+                                <canvas id="resultsChartCanvas" style="flex:1; width:100%; height:100%;"></canvas>
+                            </div>
+                            <div class="text-muted" style="margin-top:8px; font-size:13px;">
+                                Линии показывают вклад партий в сахар на соответствующей стадии для разных стратегий.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="resultsContent" class="cards-grid">
                     <div class="card-modern">
                         <div class="card-header-modern">
                             <h3>Информация о параметрах</h3>
                         </div>
                         <div class="card-body-modern" id="paramsInfo">
-                            <p class="text-muted">Сначала сгенерируйте матрицы</p>
+                            <p class="text-muted">Сначала сгенерируйте матрицы и выполните оптимизацию</p>
                         </div>
                     </div>
                 </div>
-            </section>-->
+            </section>
         </main>
     </div>
 
@@ -248,6 +266,25 @@
     <script src="node_modules/jquery/dist/jquery.min.js"></script>
     <script src="node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script>if (window.module) module = window.module;</script>
+
+    <!-- Chart.js: try local node_modules first, fallback to CDN if not available -->
+    <script>
+        (function(){
+            var local = 'node_modules/chart.js/dist/chart.umd.min.js';
+            var s = document.createElement('script');
+            s.src = local;
+            s.onload = function(){ console.log('Loaded Chart.js from node_modules'); };
+            s.onerror = function(){
+                var cdn = 'https://cdn.jsdelivr.net/npm/chart.js';
+                var s2 = document.createElement('script');
+                s2.src = cdn;
+                document.head.appendChild(s2);
+                console.log('Falling back to Chart.js CDN');
+            };
+            document.head.appendChild(s);
+        })();
+    </script>
+
     <script src="renderer.js"></script>
 
     <script>

@@ -1,4 +1,3 @@
-
 const API_URL = 'http://127.0.0.1:5000';
 
 let currentMatrixS = null;
@@ -154,11 +153,156 @@ async function runOptimization() {
 
         document.getElementById('optResults').innerHTML = html;
 
+        // Render chart in Results tab
+        renderResultsChart(data, strategyNames, strategyColors);
+
         console.log(data);
 
     } catch (e) {
         alert("Ошибка оптимизации: " + e.message);
     }
+}
+
+// New: renderResultsChart - draws line chart of sugar content per stage for different strategies
+function renderResultsChart(data, strategyNames = {}, strategyColors = {}) {
+    // Wait until Chart is available
+    if (typeof Chart === 'undefined') {
+        // try again shortly if Chart.js is still loading
+        setTimeout(() => renderResultsChart(data, strategyNames, strategyColors), 200);
+        return;
+    }
+
+    const canvas = document.getElementById('resultsChartCanvas');
+    if (!canvas) return;
+
+    const n = currentMatrixS ? currentMatrixS.length : 0;
+    if (!n) return;
+
+    // Determine which strategies to plot: take top N by yield, but include optimal, greedy and thrifty if present
+    const preferred = ['optimal', 'greedy', 'thrifty', 'thrifty_greedy', 'greedy_thrifty', 'random'];
+    const keys = Object.keys(data);
+    const datasets = [];
+
+    // helper to build series from permutation
+    const buildSeries = (perm) => {
+        const series = [];
+        for (let j = 0; j < perm.length; j++) {
+            const batchIdx = perm[j];
+            const val = (currentMatrixS[batchIdx] && currentMatrixS[batchIdx][j] != null) ? currentMatrixS[batchIdx][j] : 0;
+            series.push(Number(val));
+        }
+        return series;
+    };
+
+    // choose up to 6 series: preferred first then highest yields
+    const added = new Set();
+    for (const k of preferred) {
+        if (data[k] && data[k].permutation && !added.has(k)) {
+            const perm = data[k].permutation;
+            datasets.push({
+                label: strategyNames[k] || k,
+                data: buildSeries(perm),
+                borderColor: strategyColors[k] || getComputedStyle(document.documentElement).getPropertyValue('--primary-color') || '#667eea',
+                backgroundColor: 'transparent',
+                pointRadius: 4,
+                tension: 0.28,
+                borderWidth: 2
+            });
+            added.add(k);
+        }
+    }
+
+    // add others by descending yield until 6 datasets total
+    const others = Object.entries(data).sort((a,b) => (b[1].yield||0) - (a[1].yield||0));
+    for (const [k, v] of others) {
+        if (datasets.length >= 6) break;
+        if (added.has(k)) continue;
+        if (!v.permutation) continue;
+        datasets.push({
+            label: strategyNames[k] || k,
+            data: buildSeries(v.permutation),
+            borderColor: strategyColors[k] || randomColorForKey(k),
+            backgroundColor: 'transparent',
+            pointRadius: 3,
+            tension: 0.28,
+            borderWidth: 2
+        });
+        added.add(k);
+    }
+
+    // labels: stages 1..n
+    const labels = Array.from({length: n}, (_, i) => `Этап ${i+1}`);
+
+    // destroy previous chart if exists
+    if (canvas._chartInstance) {
+        try { canvas._chartInstance.destroy(); } catch(e){ /* ignore */ }
+        canvas._chartInstance = null;
+    }
+
+    // create chart with modern look: dark grid, right-side legend
+    const ctx = canvas.getContext('2d');
+    canvas.style.background = 'transparent';
+
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels,
+            datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 10,
+                        padding: 12,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    enabled: true,
+                    callbacks: {
+                        label: function(ctx) {
+                            return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: {
+                        color: 'rgba(0,0,0,0.04)'
+                    },
+                    ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#718096' }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0,0,0,0.06)'
+                    },
+                    ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#718096' }
+                }
+            }
+        }
+    });
+
+    canvas._chartInstance = chart;
+
+    // Also populate the results section summary (params) if available
+    updateResultsSection(currentConfig || {}, currentBatches || []);
+}
+
+// helper: generate deterministic color for a key if none provided
+function randomColorForKey(key) {
+    // simple hash to color
+    let h = 0;
+    for (let i = 0; i < key.length; i++) h = (h << 5) - h + key.charCodeAt(i);
+    const c = (h & 0x00FFFFFF).toString(16).toUpperCase();
+    return '#' + '00000'.substring(0, 6 - c.length) + c;
 }
 
 function renderMatrix(containerId, matrix, title) {
