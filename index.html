@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <title>Лаборатория оптимизации переработки свёклы</title>
     <link rel="stylesheet" href="node_modules/bootstrap/dist/css/bootstrap.min.css">
+    <!-- CDN fallback for environments without node_modules -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -29,10 +31,10 @@
                     <span class="nav-icon">📋</span>
                     <span class="nav-label">Матрицы</span>
                 </a>
-                <!-- <a href="#" class="nav-item" data-section="results">
+                <a href="#" class="nav-item" data-section="results">
                     <span class="nav-icon">📈</span>
                     <span class="nav-label">Результаты</span>
-                </a> -->
+                </a>
             </nav>
         </aside>
 
@@ -166,7 +168,7 @@
                     </div>
                 </div>
                 <div class="action-bar">
-                    <button type="button" class="btn-primary-modern" onclick="runSimulation()">
+                    <button id="simulateBtn" type="button" class="btn-primary-modern">
                         <span>🚀</span> Сгенерировать матрицы
                     </button>
                 </div>
@@ -184,7 +186,7 @@
                             <h3>Стратегии оптимизации</h3>
                         </div>
                         <div class="card-body-modern">
-                            <button type="button" class="btn-success-modern btn-block" onclick="runOptimization()" id="optBtn" disabled>
+                            <button type="button" class="btn-success-modern btn-block" id="optBtn" disabled>
                                 <span>⚡</span> Решить задачу оптимизации
                             </button>
                             <div id="optResults" class="mt-3"></div>
@@ -224,31 +226,110 @@
             </section>
 
             <!-- Results Section -->
-            <!--<section id="results-section" class="content-section">
+            <section id="results-section" class="content-section">
                 <div class="section-header">
                     <h2>Результаты и аналитика</h2>
-                    <p>Анализ результатов оптимизации</p>
+                    <p>Анализ результатов оптимизации — графики по стратегиям</p>
                 </div>
+
+                <!-- Chart container: placed at the top, fixed height so it is fully visible without scrollbars -->
+                <div class="cards-grid">
+                    <div class="card-modern" style="width:100%;">
+                        <div class="card-header-modern">
+                            <h3>График сахаристости по этапам для алгоритмов</h3>
+                        </div>
+                        <div class="card-body-modern" style="padding: 12px 20px;">
+                            <div id="resultsChartContainer" style="width:100%; height:420px; display:flex; align-items:stretch; justify-content:stretch;">
+                                <canvas id="resultsChartCanvas" style="flex:1; width:100%; height:100%;"></canvas>
+                            </div>
+                            <div class="text-muted" style="margin-top:8px; font-size:13px;">
+                                Линии показывают вклад партий в сахар на соответствующей стадии для разных стратегий.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="resultsContent" class="cards-grid">
                     <div class="card-modern">
                         <div class="card-header-modern">
                             <h3>Информация о параметрах</h3>
                         </div>
                         <div class="card-body-modern" id="paramsInfo">
-                            <p class="text-muted">Сначала сгенерируйте матрицы</p>
+                            <p class="text-muted">Сначала сгенерируйте матрицы и выполните оптимизацию</p>
                         </div>
                     </div>
                 </div>
-            </section>-->
+            </section>
         </main>
     </div>
 
     <!-- Dependencies for Bootstrap Tabs -->
     <script>if (typeof module === 'object') { window.module = module; module = undefined; }</script>
     <script src="node_modules/jquery/dist/jquery.min.js"></script>
-    <script src="node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Try local bootstrap first, then fallback to CDN if it 404s -->
+    <script>
+      (function(){
+        var s = document.createElement('script');
+        s.src = 'node_modules/bootstrap/dist/js/bootstrap.bundle.min.js';
+        s.onload = function(){ console.log('Loaded local bootstrap'); };
+        s.onerror = function(){
+          var s2 = document.createElement('script');
+          s2.src = 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js';
+          document.head.appendChild(s2);
+          console.log('Falling back to Bootstrap CDN');
+        };
+        document.head.appendChild(s);
+      })();
+    </script>
     <script>if (window.module) module = window.module;</script>
+
+    <!-- Chart.js: try local node_modules first, fallback to CDN if not available -->
+    <script>
+        (function(){
+            var local = 'node_modules/chart.js/dist/chart.umd.min.js';
+            var s = document.createElement('script');
+            s.src = local;
+            s.onload = function(){ console.log('Loaded Chart.js from node_modules'); };
+            s.onerror = function(){
+                var cdn = 'https://cdn.jsdelivr.net/npm/chart.js';
+                var s2 = document.createElement('script');
+                s2.src = cdn;
+                document.head.appendChild(s2);
+                console.log('Falling back to Chart.js CDN');
+            };
+            document.head.appendChild(s);
+        })();
+    </script>
+
     <script src="renderer.js"></script>
+
+    <script>
+        // Attach handlers after DOM + renderer.js loaded to avoid calling missing functions/elements
+        document.addEventListener('DOMContentLoaded', function () {
+            const simulateBtn = document.getElementById('simulateBtn');
+            if (simulateBtn) {
+                simulateBtn.addEventListener('click', function () {
+                    if (typeof runSimulation === 'function') {
+                        try { runSimulation(); } catch (e) { console.error('runSimulation failed', e); }
+                    } else {
+                        console.warn('runSimulation not defined yet');
+                    }
+                });
+            }
+
+            const optBtn = document.getElementById('optBtn');
+            if (optBtn) {
+                optBtn.addEventListener('click', function () {
+                    if (typeof runOptimization === 'function') {
+                        try { runOptimization(); } catch (e) { console.error('runOptimization failed', e); }
+                    } else {
+                        console.warn('runOptimization not defined yet');
+                    }
+                });
+            }
+        });
+    </script>
 
     <script>
         // Sidebar navigation
@@ -260,7 +341,8 @@
                 
                 item.classList.add('active');
                 const section = item.getAttribute('data-section');
-                document.getElementById(section + '-section').classList.add('active');
+                const target = document.getElementById(section + '-section');
+                if (target) target.classList.add('active');
             });
         });
 
@@ -272,35 +354,43 @@
                 
                 btn.classList.add('active');
                 const tabId = btn.getAttribute('data-tab');
-                document.getElementById(tabId).classList.add('active');
+                const pane = document.getElementById(tabId);
+                if (pane) pane.classList.add('active');
             });
         });
 
-        // Ripening toggle
-
-
         // Показать/скрыть знаменатель дельты при выборе типа распределения
         document.addEventListener('DOMContentLoaded', function() {
-            const deltaContainer = document.getElementById('deltaContainer');
-            const uniformRadio = document.getElementById('distUniform');
-            const concRadio = document.getElementById('distConc');
-            
-            // Обработчики событий для радио-кнопок
-            uniformRadio.addEventListener('change', function() {
-                if (this.checked) {
-                    deltaContainer.style.display = 'none';
+            try {
+                const deltaContainer = document.getElementById('deltaContainer');
+                const uniformRadio = document.getElementById('distUniform');
+                const concRadio = document.getElementById('distConc');
+
+                if (uniformRadio && concRadio && deltaContainer) {
+                    // Обработчики событий для радио-кнопок
+                    uniformRadio.addEventListener('change', function() {
+                        if (this.checked) {
+                            deltaContainer.style.display = 'none';
+                        }
+                    });
+                    
+                    concRadio.addEventListener('change', function() {
+                        if (this.checked) {
+                            deltaContainer.style.display = 'block';
+                        }
+                    });
+                    
+                    // Проверить начальное состояние
+                    if (concRadio.checked) {
+                        deltaContainer.style.display = 'block';
+                    } else {
+                        deltaContainer.style.display = 'none';
+                    }
+                } else {
+                    console.warn('distType radios or deltaContainer not found - skipping delta toggle init');
                 }
-            });
-            
-            concRadio.addEventListener('change', function() {
-                if (this.checked) {
-                    deltaContainer.style.display = 'block';
-                }
-            });
-            
-            // Проверить начальное состояние
-            if (concRadio.checked) {
-                deltaContainer.style.display = 'block';
+            } catch (e) {
+                console.warn('Error initializing distribution toggle:', e);
             }
         });
         
