@@ -13,7 +13,9 @@ FLASK BACKEND API - ГЛАВНЫЙ ФАЙЛ ПРИЛОЖЕНИЯ
     - CORS - разрешает запросы с frontend (кросс-доменные запросы)
     - API endpoints:
         * POST /simulate - генерация матриц состояний и параметров партий
+        * POST /multi_simulate - генерация 50 наборов матриц
         * POST /optimize - оптимизация последовательности переработки
+        * POST /multi_optimize - оптимизация для 50 матриц
 
 АРХИТЕКТУРА:
     Frontend (Electron) <--HTTP--> Flask Backend <--использует--> Модули:
@@ -61,6 +63,25 @@ API ENDPOINTS:
             "batches": [...]   # Список партий с их параметрами
         }
 
+    POST /multi_simulate
+    ---------------------
+    Входные данные (JSON): те же, что и для /simulate
+    Выходные данные (JSON):
+        {
+            "experiments": [
+                {
+                    "matrices": {
+                        "B": [[...]],
+                        "C": [[...]],
+                        "L": [[...]],
+                        "S": [[...]]
+                    },
+                    "batches": [...]
+                },
+                ...  # 50 экспериментов
+            ]
+        }
+
     POST /optimize
     ---------------
     Входные данные (JSON):
@@ -79,12 +100,39 @@ API ENDPOINTS:
             "thrifty": {...},
             "thrifty_greedy": {...},
             "greedy_thrifty": {...},
-            "t1g": {...},
-            "g5": {...},
-            "g10": {...},
-            "g20": {...},
             "optimal": {...},  # Венгерский алгоритм (оптимальное решение)
-            "random": {...}   # Случайная перестановка (базовая линия)
+            "notoptimal": {...} # Венгерский алгоритм (минимальное решение)
+        }
+
+    POST /multi_optimize
+    --------------------
+    Входные данные (JSON):
+        {
+            "matrices": [[[...]], ...],  # Массив из 50 матриц S
+            "mass_per_batch": 1000.0     # Масса партии
+        }
+    
+    Выходные данные (JSON):
+        {
+            "averages": {
+                "greedy": {
+                    "yield": 15.5,                  # Средний выход сахара
+                    "final_mass": 108500.0          # Средняя итоговая масса
+                },
+                "thrifty": {...},
+                "thrifty_greedy": {...},
+                "greedy_thrifty": {...},
+                "optimal": {...},
+                "notoptimal": {...}
+            },
+            "all_results": [  # Результаты для каждой матрицы (опционально)
+                {
+                    "greedy": {...},
+                    "thrifty": {...},
+                    ...
+                },
+                ...
+            ]
         }
 
 ВАЛИДАЦИЯ:
@@ -190,40 +238,11 @@ def validate_config(data):
     
     return errors
 
-@app.route('/simulate', methods=['POST'])
-def simulate():
-    data = request.json
-    
-    # Validate input
-    validation_errors = validate_config(data)
-    if validation_errors:
-        return jsonify({'error': 'Validation failed', 'errors': validation_errors}), 400
-    
-    # Parse Config
-    config = ExperimentConfig(
-        n=data['n'],
-        m=data['m'],
-        a_min=data['a_min'],
-        a_max=data['a_max'],
-        beta1=data['beta1'],
-        beta2=data['beta2'],
-        distribution_type=data['distribution_type'],
-        enable_ripening=data.get('enable_ripening', False),
-        v=data.get('v'),
-        beta_max=data.get('beta_max'),
-        use_losses=data.get('use_losses', True),
-        growth_base=data.get('growth_base', 1.029),
-        delta_k=data.get('delta_k', 4),
-        delta_k_ripening=data.get('delta_k_ripening', 4),
-    )
-    
+def generate_single_experiment(config):
+    """Generate a single experiment with matrices."""
     # Generate Batches [1..n]
     batches = []
     for i in range(config.n):
-        # Allow manual override or random generation if not provided?
-        # For now, let's generate random parameters based on ranges
-        # Task implies we generate these "parameters of batches"
-        
         # Initial sugar
         a_i = np.random.uniform(config.a_min, config.a_max)
         
@@ -241,8 +260,6 @@ def simulate():
             # "delta_i <= |beta2 - beta1| / k"
             max_delta = abs(config.beta2 - config.beta1) / config.delta_k
             delta_i = np.random.uniform(0, max_delta)
-            
-            
             
             b_start = np.random.uniform(config.beta1, config.beta2 - delta_i)
             b_end = b_start + delta_i
@@ -293,7 +310,7 @@ def simulate():
         L = np.zeros_like(C)
         S_tilde = C
     
-    return jsonify({
+    return {
         'matrices': {
             'B': B.tolist(),
             'C': C.tolist(),
@@ -301,8 +318,78 @@ def simulate():
             'S': S_tilde.tolist()
         },
         'batches': [vars(b) for b in batches]
-    })
+    }
 
+@app.route('/simulate', methods=['POST'])
+def simulate():
+    data = request.json
+    
+    # Validate input
+    validation_errors = validate_config(data)
+    if validation_errors:
+        return jsonify({'error': 'Validation failed', 'errors': validation_errors}), 400
+    
+    # Parse Config
+    config = ExperimentConfig(
+        n=data['n'],
+        m=data['m'],
+        a_min=data['a_min'],
+        a_max=data['a_max'],
+        beta1=data['beta1'],
+        beta2=data['beta2'],
+        distribution_type=data['distribution_type'],
+        enable_ripening=data.get('enable_ripening', False),
+        v=data.get('v'),
+        beta_max=data.get('beta_max'),
+        use_losses=data.get('use_losses', True),
+        growth_base=data.get('growth_base', 1.029),
+        delta_k=data.get('delta_k', 4),
+        delta_k_ripening=data.get('delta_k_ripening', 4),
+    )
+    
+    # Generate single experiment
+    experiment = generate_single_experiment(config)
+    
+    return jsonify(experiment)
+
+@app.route('/multi_simulate', methods=['POST'])
+def multi_simulate():
+    """Generate 50 different experiments with the same parameters."""
+    data = request.json
+    
+    # Validate input
+    validation_errors = validate_config(data)
+    if validation_errors:
+        return jsonify({'error': 'Validation failed', 'errors': validation_errors}), 400
+    
+    # Parse Config
+    config = ExperimentConfig(
+        n=data['n'],
+        m=data['m'],
+        a_min=data['a_min'],
+        a_max=data['a_max'],
+        beta1=data['beta1'],
+        beta2=data['beta2'],
+        distribution_type=data['distribution_type'],
+        enable_ripening=data.get('enable_ripening', False),
+        v=data.get('v'),
+        beta_max=data.get('beta_max'),
+        use_losses=data.get('use_losses', True),
+        growth_base=data.get('growth_base', 1.029),
+        delta_k=data.get('delta_k', 4),
+        delta_k_ripening=data.get('delta_k_ripening', 4),
+    )
+    
+    # Generate 50 experiments
+    experiments = []
+    for exp_idx in range(50):
+        experiment = generate_single_experiment(config)
+        experiments.append(experiment)
+    
+    return jsonify({
+        'experiments': experiments,
+        'count': len(experiments)
+    })
 
 def to_native(obj):
     """
@@ -320,8 +407,6 @@ def to_native(obj):
     if isinstance(obj, (list, tuple)):
         return [to_native(i) for i in obj]
     return obj
-
-
 
 @app.route('/optimize', methods=['POST'])
 def optimize():
@@ -367,25 +452,7 @@ def optimize():
             'final_mass': float(Optimizer.calculate_final_mass(yield_gt, mass_per_batch))
         }
 
-        # 5. T(1)G
-        # perm_t1g, yield_t1g = Optimizer.optimize_tkg(S_tilde, k=1, nu=nu)
-        # results['t1g'] = {
-        #     'permutation': [int(x) for x in perm_t1g],
-        #     'yield': float(yield_t1g),
-        #     'final_mass': float(Optimizer.calculate_final_mass(yield_t1g, mass_per_batch))
-        # }
-
-        #6. Gk strategies
-        # for k in [5, 10, 20]:
-        #     if k <= n:
-        #         perm_gk, yield_gk = Optimizer.optimize_gk(S_tilde, k)
-        #         results[f'g{k}'] = {
-        #             'permutation': [int(x) for x in perm_gk],
-        #             'yield': float(yield_gk),
-        #             'final_mass': float(Optimizer.calculate_final_mass(yield_gk, mass_per_batch))
-        #         }
-
-        # 7. Hungarian (optimal) - обернём вызов, если может падать
+        # 5. Hungarian (optimal) - обернём вызов, если может падать
         try:
             perm_hungarian, yield_hungarian = Optimizer.optimize_hungarian(S_tilde)
             results['optimal'] = {
@@ -402,8 +469,7 @@ def optimize():
             }
             yield_hungarian = 0.0
 
-        # 8. notoptimal
-
+        # 6. Hungarian min (notoptimal)
         try:
             perm_hungarian_min, yield_hungarian_min = Optimizer.optimize_hungarian_min(S_tilde)
             results['notoptimal'] = {
@@ -421,9 +487,6 @@ def optimize():
             }
             yield_hungarian = 0.0
 
-
-
-
         # relative losses vs optimal
         yield_hungarian = locals().get('yield_hungarian', results.get('optimal', {}).get('yield', 0.0))
         if yield_hungarian and yield_hungarian > 0:
@@ -440,6 +503,149 @@ def optimize():
     except Exception as e:
         app.logger.exception("Optimization failed")
         return jsonify({'error': 'Optimization failed', 'message': str(e)}), 500
+
+@app.route('/multi_optimize', methods=['POST'])
+def multi_optimize():
+    """Apply optimization algorithms to 50 matrices and return average results."""
+    try:
+        data = request.json
+        matrices = data['matrices']  # Array of 50 matrices
+        mass_per_batch = data.get('mass_per_batch', 1000.0)
+        
+        if len(matrices) != 50:
+            return jsonify({'error': 'Exactly 50 matrices are required'}), 400
+        
+        # Initialize accumulators for each algorithm
+        algorithms = ['greedy', 'thrifty', 'thrifty_greedy', 'greedy_thrifty', 'optimal', 'notoptimal']
+        accumulators = {algo: {'yield_sum': 0.0, 'mass_sum': 0.0, 'count': 0} for algo in algorithms}
+        
+        all_results = []  # Store results for each matrix
+        
+        # Process each matrix
+        for matrix_idx, matrix_data in enumerate(matrices):
+            S_tilde = np.array(matrix_data)
+            n = S_tilde.shape[0]
+            nu = n // 2
+            
+            matrix_results = {}
+            
+            # Apply each algorithm
+            # 1. Greedy
+            try:
+                perm_greedy, yield_greedy = Optimizer.optimize_greedy(S_tilde)
+                accumulators['greedy']['yield_sum'] += yield_greedy
+                accumulators['greedy']['mass_sum'] += Optimizer.calculate_final_mass(yield_greedy, mass_per_batch)
+                accumulators['greedy']['count'] += 1
+                matrix_results['greedy'] = {
+                    'yield': float(yield_greedy),
+                    'final_mass': float(Optimizer.calculate_final_mass(yield_greedy, mass_per_batch))
+                }
+            except Exception as e:
+                app.logger.warning(f"Greedy failed for matrix {matrix_idx}: {e}")
+            
+            # 2. Thrifty
+            try:
+                perm_thrifty, yield_thrifty = Optimizer.optimize_thrifty(S_tilde)
+                accumulators['thrifty']['yield_sum'] += yield_thrifty
+                accumulators['thrifty']['mass_sum'] += Optimizer.calculate_final_mass(yield_thrifty, mass_per_batch)
+                accumulators['thrifty']['count'] += 1
+                matrix_results['thrifty'] = {
+                    'yield': float(yield_thrifty),
+                    'final_mass': float(Optimizer.calculate_final_mass(yield_thrifty, mass_per_batch))
+                }
+            except Exception as e:
+                app.logger.warning(f"Thrifty failed for matrix {matrix_idx}: {e}")
+            
+            # 3. Thrifty/Greedy
+            try:
+                perm_tg, yield_tg = Optimizer.optimize_thrifty_greedy(S_tilde, nu)
+                accumulators['thrifty_greedy']['yield_sum'] += yield_tg
+                accumulators['thrifty_greedy']['mass_sum'] += Optimizer.calculate_final_mass(yield_tg, mass_per_batch)
+                accumulators['thrifty_greedy']['count'] += 1
+                matrix_results['thrifty_greedy'] = {
+                    'yield': float(yield_tg),
+                    'final_mass': float(Optimizer.calculate_final_mass(yield_tg, mass_per_batch))
+                }
+            except Exception as e:
+                app.logger.warning(f"Thrifty/Greedy failed for matrix {matrix_idx}: {e}")
+            
+            # 4. Greedy/Thrifty
+            try:
+                perm_gt, yield_gt = Optimizer.optimize_greedy_thrifty(S_tilde, nu)
+                accumulators['greedy_thrifty']['yield_sum'] += yield_gt
+                accumulators['greedy_thrifty']['mass_sum'] += Optimizer.calculate_final_mass(yield_gt, mass_per_batch)
+                accumulators['greedy_thrifty']['count'] += 1
+                matrix_results['greedy_thrifty'] = {
+                    'yield': float(yield_gt),
+                    'final_mass': float(Optimizer.calculate_final_mass(yield_gt, mass_per_batch))
+                }
+            except Exception as e:
+                app.logger.warning(f"Greedy/Thrifty failed for matrix {matrix_idx}: {e}")
+            
+            # 5. Hungarian (optimal)
+            try:
+                perm_hungarian, yield_hungarian = Optimizer.optimize_hungarian(S_tilde)
+                accumulators['optimal']['yield_sum'] += yield_hungarian
+                accumulators['optimal']['mass_sum'] += Optimizer.calculate_final_mass(yield_hungarian, mass_per_batch)
+                accumulators['optimal']['count'] += 1
+                matrix_results['optimal'] = {
+                    'yield': float(yield_hungarian),
+                    'final_mass': float(Optimizer.calculate_final_mass(yield_hungarian, mass_per_batch))
+                }
+            except Exception as e:
+                app.logger.warning(f"Hungarian (optimal) failed for matrix {matrix_idx}: {e}")
+            
+            # 6. Hungarian min (notoptimal)
+            try:
+                perm_hungarian_min, yield_hungarian_min = Optimizer.optimize_hungarian_min(S_tilde)
+                accumulators['notoptimal']['yield_sum'] += yield_hungarian_min
+                accumulators['notoptimal']['mass_sum'] += Optimizer.calculate_final_mass(yield_hungarian_min, mass_per_batch)
+                accumulators['notoptimal']['count'] += 1
+                matrix_results['notoptimal'] = {
+                    'yield': float(yield_hungarian_min),
+                    'final_mass': float(Optimizer.calculate_final_mass(yield_hungarian_min, mass_per_batch))
+                }
+            except Exception as e:
+                app.logger.warning(f"Hungarian min failed for matrix {matrix_idx}: {e}")
+            
+            all_results.append(matrix_results)
+        
+        # Calculate averages
+        averages = {}
+        for algo in algorithms:
+            if accumulators[algo]['count'] > 0:
+                avg_yield = accumulators[algo]['yield_sum'] / accumulators[algo]['count']
+                avg_mass = accumulators[algo]['mass_sum'] / accumulators[algo]['count']
+                
+                averages[algo] = {
+                    'yield': float(avg_yield),
+                    'final_mass': float(avg_mass),
+                    'success_count': accumulators[algo]['count']
+                }
+            else:
+                averages[algo] = {
+                    'yield': 0.0,
+                    'final_mass': 0.0,
+                    'success_count': 0
+                }
+        
+        # Calculate relative losses vs optimal
+        if 'optimal' in averages and averages['optimal']['yield'] > 0:
+            for algo in algorithms:
+                if algo != 'optimal' and algo in averages:
+                    relative_loss = ((averages['optimal']['yield'] - averages[algo]['yield']) / 
+                                    averages['optimal']['yield']) * 100
+                    averages[algo]['relative_loss_percent'] = float(relative_loss)
+        
+        return jsonify({
+            'averages': averages,
+            'all_results': all_results,  # Optional: detailed results for each matrix
+            'total_matrices': len(matrices)
+        })
+        
+    except Exception as e:
+        app.logger.exception("Multi-optimization failed")
+        return jsonify({'error': 'Multi-optimization failed', 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)

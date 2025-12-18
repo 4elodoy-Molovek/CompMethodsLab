@@ -152,3 +152,100 @@ class MatrixGenerator:
                 C[i, j] = C[i, j-1] * B[i, j-1]
                 
         return C
+    
+    @staticmethod
+    def generate_multiple_experiments(config: ExperimentConfig, num_experiments: int = 50):
+        """
+        Generate multiple experiments with the same configuration.
+        
+        Args:
+            config: Experiment configuration
+            num_experiments: Number of experiments to generate
+            
+        Returns:
+            List of experiment results, each containing matrices and batches
+        """
+        experiments = []
+        
+        for exp_idx in range(num_experiments):
+            # Generate Batches [1..n]
+            batches = []
+            for i in range(config.n):
+                # Initial sugar
+                a_i = np.random.uniform(config.a_min, config.a_max)
+                
+                # Loss params
+                k = np.random.uniform(config.k_min, config.k_max)
+                na = np.random.uniform(config.na_min, config.na_max)
+                n_cont = np.random.uniform(config.n_content_min, config.n_content_max)
+                i0 = np.random.uniform(config.i0_min, config.i0_max)
+                
+                # Concentrated distribution params for wilting (delta)
+                delta = None
+                b_start = None
+                b_end = None
+                if config.distribution_type == 'concentrated':
+                    # "delta_i <= |beta2 - beta1| / k"
+                    max_delta = abs(config.beta2 - config.beta1) / config.delta_k
+                    delta_i = np.random.uniform(0, max_delta)
+                    
+                    b_start = np.random.uniform(config.beta1, config.beta2 - delta_i)
+                    b_end = b_start + delta_i
+                    
+                    delta = delta_i
+                
+                # Concentrated distribution params for ripening
+                delta_ripening = None
+                b_start_ripening = None
+                b_end_ripening = None
+                if config.distribution_type == 'concentrated' and config.enable_ripening:
+                    # Calculate beta_max for ripening range
+                    beta_max = config.beta_max
+                    if beta_max is None:
+                        if config.n > 2:
+                            beta_max = (config.n - 1) / (config.n - 2)
+                        else:
+                            beta_max = 1.1
+                    
+                    # Similar logic for ripening: delta <= |beta_max - 1| / k
+                    max_delta_ripening = abs(beta_max - 1.0) / config.delta_k_ripening
+                    delta_ripening_i = np.random.uniform(0, max_delta_ripening)
+                    
+                    # center in (1 + delta, beta_max - delta]
+                    center_ripening = np.random.uniform(1.0 + delta_ripening_i, beta_max - delta_ripening_i)
+                    b_start_ripening = center_ripening - delta_ripening_i
+                    b_end_ripening = center_ripening + delta_ripening_i
+                    
+                    delta_ripening = delta_ripening_i
+                    
+                batches.append(BeetBatch(
+                    index=i,
+                    initial_sugar=a_i,
+                    k=k, na=na, n_content=n_cont, i0=i0,
+                    delta=delta, beta_range_start=b_start, beta_range_end=b_end,
+                    delta_ripening=delta_ripening,
+                    beta_range_start_ripening=b_start_ripening,
+                    beta_range_end_ripening=b_end_ripening
+                ))
+            
+            # Generate Matrices
+            B = MatrixGenerator.generate_coefficients(config, batches)
+            C = MatrixGenerator.generate_states(batches, B)
+            if config.use_losses:
+                L = LossModel.calculate_losses(batches, C, config.n, growth_base=config.growth_base)
+                S_tilde = LossModel.calculate_final_yield_matrix(C, L)
+            else:
+                L = np.zeros_like(C)
+                S_tilde = C
+            
+            experiments.append({
+                'matrices': {
+                    'B': B.tolist(),
+                    'C': C.tolist(),
+                    'L': L.tolist(),
+                    'S': S_tilde.tolist()
+                },
+                'batches': [vars(b) for b in batches]
+            })
+        
+        return experiments
