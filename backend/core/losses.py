@@ -54,9 +54,6 @@
         1. Модифицируйте метод calculate_losses()
         2. Убедитесь, что единицы измерения согласованы
         3. Обновите комментарии и документацию
-
-АВТОР: [Ваше имя]
-ДАТА СОЗДАНИЯ: [Дата]
 ===================================================================
 """
 
@@ -84,7 +81,7 @@ class LossModel:
         # Реалистичные пределы потерь
         MIN_LOSS = 1.5    # Минимальные технологические потери
         MAX_LOSS = 4.5    # Максимальные потери в нормальном производстве
-        MAX_PERCENT_OF_SUGAR = 0.35  # Максимум 35% от содержания сахара
+        MAX_PERCENT_OF_SUGAR = 0.5  # Максимум от содержания сахара
         
         for i in range(n):
             batch = batches[i]
@@ -108,7 +105,7 @@ class LossModel:
                 # I_{ij} calculation
                 # Power is 7j - 7 = 7(j-1). Since stage_idx is j, -> 7(stage_idx) - 7 = 7(stage_idx - 1)
                 # If stage_idx=1, power=0. Correct.
-                I_ij = I0 * (growth_base ** (stage_idx - 1))
+                I_ij = I0 * (growth_base ** (7*stage_idx - 7))
 
                 
                 # Loss calculation
@@ -151,6 +148,8 @@ class LossModel:
 
     @staticmethod
     def calculate_final_yield_matrix(C: np.ndarray, L: np.ndarray) -> np.ndarray:
+        S = C - L
+        S - np.maximum(S, 0)
         """
         Calculates S_tilde = C - L_tilde
         The task says l_{ij} is in %.
@@ -165,4 +164,4 @@ class LossModel:
         If L contains percentages (e.g. 1.5%), then subtraction makes sense.
         So we divide L by 100 before subtracting from C (отталкивался от комментария в мдшке "я так понимаю надо l_{ij} поделить на 100 и можно с исходной C считать")
         """
-        return C - L
+        return S
