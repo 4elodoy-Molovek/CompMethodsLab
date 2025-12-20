@@ -1,10 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
 
 block_cipher = None
 
 a = Analysis(
     ['app.py'],
-    pathex=[],
+    pathex=[os.path.join(os.getcwd(), 'backend')],
     binaries=[],
     datas=[],
     hiddenimports=['flask', 'flask_cors', 'numpy', 'core.models', 'core.generators', 'core.losses', 'algorithms.optimizer'],
