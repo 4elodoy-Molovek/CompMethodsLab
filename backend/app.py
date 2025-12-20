@@ -330,11 +330,20 @@ def simulate():
         return jsonify({'error': 'Validation failed', 'errors': validation_errors}), 400
     
     # Parse Config
+    # Normalize sugar inputs: accept either fraction (0.12) or percent (12)
+    a_min_in = data['a_min']
+    a_max_in = data['a_max']
+    # If values are given as fractions (<= 1), convert to percent
+    if a_min_in is not None and a_min_in <= 1.0:
+        a_min_in = a_min_in * 100.0
+    if a_max_in is not None and a_max_in <= 1.0:
+        a_max_in = a_max_in * 100.0
+
     config = ExperimentConfig(
         n=data['n'],
         m=data['m'],
-        a_min=data['a_min'],
-        a_max=data['a_max'],
+        a_min=a_min_in,
+        a_max=a_max_in,
         beta1=data['beta1'],
         beta2=data['beta2'],
         distribution_type=data['distribution_type'],

@@ -11,77 +11,7 @@ function _el(id) { return document.getElementById(id); }
 function _num(v, fallback = 0) { const x = Number(v); return Number.isFinite(x) ? x : fallback; }
 function _int(v, fallback = 0) { const x = parseInt(v); return Number.isFinite(x) ? x : fallback; }
 
-async function runSimulation() {
-    // Defensive access to DOM elements
-    const nEl = _el('n');
-    const mEl = _el('m');
-    const aMinEl = _el('a_min');
-    const aMaxEl = _el('a_max');
-    const beta1El = _el('beta1');
-    const beta2El = _el('beta2');
-    const growthBaseEl = _el('growth_base');
-    const deltaKEl = _el('delta_k');
-    const useLossesEl = _el('useLosses');
-
-    const distSel = document.querySelector('input[name="distType"]:checked');
-
-    const config = {
-        n: _int(nEl ? nEl.value : null, 0),
-        m: _num(mEl ? mEl.value : null, 0),
-        a_min: _num(aMinEl ? aMinEl.value : null, 0),
-        a_max: _num(aMaxEl ? aMaxEl.value : null, 0),
-        beta1: _num(beta1El ? beta1El.value : null, 0),
-        beta2: _num(beta2El ? beta2El.value : null, 0),
-        distribution_type: distSel ? distSel.value : 'uniform',
-        use_losses: !!(useLossesEl && useLossesEl.checked),
-        growth_base: _num(growthBaseEl ? growthBaseEl.value : null, 1.029),
-        delta_k: _int(deltaKEl ? deltaKEl.value : null, 4),
-    };
-
-    currentConfig = config;
-
-    try {
-        const response = await fetch(`${API_URL}/simulate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
-        });
-
-        if (!response.ok) {
-            const txt = await response.text();
-            throw new Error(`Server error: ${response.status} ${txt}`);
-        }
-
-        const data = await response.json();
-
-        if (data.matrices) {
-            renderMatrix('containerC', data.matrices.C || [[]], 'C');
-            renderMatrix('containerL', data.matrices.L || [[]], 'L');
-            renderMatrix('containerS', data.matrices.S || [[]], 'S (Выход)');
-            renderMatrix('containerB', data.matrices.B || [[]], 'B (Коэфф.)');
-
-            currentMatrixS = data.matrices.S || null;
-            currentMassPerBatch = config.m || currentMassPerBatch;
-            currentBatches = data.batches || [];
-            
-            // Clear multi-experiment data
-            currentExperiments = null;
-            currentExperimentIndex = 0;
-            updateMatrixNavigation();
-        } else {
-            throw new Error('Empty matrices from backend');
-        }
-
-        const optBtn = _el('optBtn');
-        const multiOptBtn = _el('multiOptBtn');
-        if (optBtn) optBtn.disabled = false;
-        if (multiOptBtn) multiOptBtn.disabled = true; // Disable multi-opt for single matrix
-
-    } catch (e) {
-        console.error(e);
-        alert('Ошибка при генерации матриц: ' + (e.message || e));
-    }
-}
+// Single-matrix generation removed — experiments should be run as batches
 
 async function runMultiSimulation() {
     // Defensive access to DOM elements
@@ -112,6 +42,36 @@ async function runMultiSimulation() {
 
     currentConfig = config;
 
+    // Validate parameters according to experimental protocol (see provided spec)
+    //  - n should be one of the allowed values (15 recommended or 100)
+    //  - initial sugar (a_min, a_max) is expected in percent and must lie within 12..22
+    //  - degradation coefficients beta in a reasonable range (0.85..1.15) and beta1 < beta2
+    const nVal = Number(config.n);
+    const aMinVal = Number(config.a_min);
+    const aMaxVal = Number(config.a_max);
+    const beta1Val = Number(config.beta1);
+    const beta2Val = Number(config.beta2);
+
+    if (!Number.isInteger(nVal) || nVal < 15 || nVal > 100) {
+        alert('Параметр "Количество партий (n)" должен быть целым числом в диапазоне 15–100 (включительно)');
+        return;
+    }
+
+    if (isNaN(aMinVal) || isNaN(aMaxVal) || aMinVal < 12 || aMaxVal > 22 || aMinVal >= aMaxVal) {
+        alert('Начальная сахаристость должна быть в диапазоне 12–22 (%) и min < max (введите корректные значения)');
+        return;
+    }
+
+    if (isNaN(beta1Val) || isNaN(beta2Val) || beta1Val < 0.85 || beta2Val > 1.15 || beta1Val >= beta2Val) {
+        alert('Коэффициенты деградации β должны быть в диапазоне примерно 0.85–1.15 и β_min < β_max');
+        return;
+    }
+
+    if (!(Number(config.m) > 0)) {
+        alert('Масса партии должна быть положительным числом');
+        return;
+    }
+
     try {
         const response = await fetch(`${API_URL}/multi_simulate`, {
             method: 'POST',
@@ -130,29 +90,26 @@ async function runMultiSimulation() {
             currentExperiments = data.experiments;
             currentExperimentIndex = 0;
             
-            // Show first experiment
+            // Show first experiment and update navigation controls
             showExperiment(currentExperimentIndex);
-            
-            // Update navigation controls
             updateMatrixNavigation();
-            
-            // Enable multi-optimization button
-            const multiOptBtn = _el('multiOptBtn');
-            if (multiOptBtn) multiOptBtn.disabled = false;
-            
-            // Disable single optimization button
-            const optBtn = _el('optBtn');
-            if (optBtn) optBtn.disabled = true;
-            
+
             // Show success message
             showNotification(`Успешно сгенерировано ${data.experiments.length} матриц`, 'success');
+
+            // Automatically run multi-optimization (averaging) for generated experiments
+            try {
+                await runMultiOptimization();
+            } catch (e) {
+                console.error('Auto multi-optimization failed:', e);
+            }
         } else {
             throw new Error('No experiments generated');
         }
 
     } catch (e) {
         console.error(e);
-        alert('Ошибка при генерации 50 матриц: ' + (e.message || e));
+        alert('Ошибка при генерации матриц: ' + (e.message || e));
     }
 }
 
@@ -281,13 +238,15 @@ async function runOptimization() {
 
         const data = await response.json();
 
+        console.debug('optimize() response data:', data);
+
         // Build sorted strategies list (descending by yield) to display consistently
         const strategies = Object.entries(data).sort((a, b) => (b[1].yield || 0) - (a[1].yield || 0));
 
         // Render results summary
         let html = `<h6>Результаты оптимизации (одна матрица)</h6>`;
         if (data.optimal) {
-            html += `<div class="alert alert-info"><strong>Оптимальный (optimal)</strong><br>`;
+            html += `<div class="alert alert-info"><strong>Максимальным</strong><br>`;
             html += `Выход: <b>${(data.optimal.yield||0).toFixed(2)}</b><br>`;
             html += `Порядок партий: ${visualizeSequence(data.optimal.permutation || [], data.optimal.yield || 0, currentMatrixS)}</div>`;
         }
@@ -304,7 +263,13 @@ async function runOptimization() {
 
         // Update chart in Results tab
         if (typeof renderResultsChart === 'function') {
-            renderResultsChart(data);
+            try {
+                renderResultsChart(data);
+            } catch (e) {
+                console.error('renderResultsChart failed:', e, data);
+            }
+        } else {
+            console.warn('renderResultsChart is not defined');
         }
     } catch (e) {
         console.error(e);
@@ -314,7 +279,7 @@ async function runOptimization() {
 
 async function runMultiOptimization() {
     if (!currentExperiments || currentExperiments.length === 0) {
-        alert('Сначала сгенерируйте 50 матриц (кнопка "Сгенерировать 50 матриц")');
+        alert('Сначала сгенерируйте матрицы (кнопка "Сгенерировать матрицы")');
         return;
     }
 
@@ -382,7 +347,7 @@ function renderMultiOptimizationResults(data) {
             html += `Успешных применений: ${result.success_count}/${data.total_matrices} (${successRate.toFixed(1)}%)`;
             
             if (result.relative_loss_percent !== undefined) {
-                html += `<br>Потери относительно оптимального: <b style="color: #e53e3e;">${result.relative_loss_percent.toFixed(2)}%</b>`;
+                html += `<br>Потери относительно максимального: <b style="color: #e53e3e;">${result.relative_loss_percent.toFixed(2)}%</b>`;
             }
             
             html += `</div>`;
@@ -392,7 +357,7 @@ function renderMultiOptimizationResults(data) {
         html += `<div class="alert alert-success">`;
         html += `<strong>Статистика по 50 экспериментам</strong><br>`;
         html += `• Всего матриц: ${data.total_matrices}<br>`;
-        html += `• Оптимальный алгоритм даёт в среднем ${averages.optimal?.yield?.toFixed(2) || '0.00'} выхода<br>`;
+        html += `• Максимальный алгоритм даёт в среднем ${averages.optimal?.yield?.toFixed(2) || '0.00'} выхода<br>`;
         html += `• Лучший эвристический алгоритм: ${getBestHeuristicAlgorithm(averages)}`;
         html += `</div>`;
     } else {
@@ -402,13 +367,202 @@ function renderMultiOptimizationResults(data) {
     optResultsEl.innerHTML = html;
 }
 
+function renderResultsChart(data) {
+    console.debug('renderResultsChart called with data:', data);
+
+    if (typeof Chart === 'undefined') {
+        setTimeout(() => renderResultsChart(data), 200);
+        return;
+    }
+
+    const canvas = _el('resultsChartCanvas');
+    if (!canvas) {
+        console.warn('resultsChartCanvas not found');
+        return;
+    }
+
+    // Ensure canvas has an explicit pixel size matching its container
+    try {
+        const container = canvas.parentElement;
+        // Make chart area taller to avoid cramped labels
+        if (container) container.style.minHeight = '360px';
+        const w = (container && container.clientWidth) || 600;
+        const h = (container && container.clientHeight) || 360;
+        if (w > 0 && h > 0) {
+            canvas.width = w;
+            canvas.height = h;
+        }
+    } catch (e) {
+        console.debug('Unable to set canvas pixel size:', e);
+    }
+
+    // data is expected to be a map of algorithm -> result
+    const labels = [];
+    const yields = [];
+
+    for (const key in data) {
+        if (!Object.prototype.hasOwnProperty.call(data, key)) continue;
+        const res = data[key];
+        if (!res || typeof res.yield !== 'number') continue;
+        labels.push(getAlgorithmName(key));
+        yields.push(res.yield || 0);
+    }
+
+    if (labels.length === 0) {
+        console.warn('renderResultsChart: no labels to render');
+        const ctx = canvas.getContext && canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#999';
+            ctx.textAlign = 'center';
+            ctx.font = '16px Roboto, Arial';
+            ctx.fillText('Нет данных для графика', canvas.width / 2, (canvas.height || 200) / 2);
+        }
+        return;
+    }
+
+    const colors = labels.map((_, i) => {
+        const palette = [
+            'rgba(102, 126, 234, 0.8)',
+            'rgba(72, 187, 120, 0.8)',
+            'rgba(237, 137, 54, 0.8)',
+            'rgba(231, 76, 60, 0.8)',
+            'rgba(155, 89, 182, 0.8)',
+            'rgba(52, 152, 219, 0.8)'
+        ];
+        return palette[i % palette.length];
+    });
+
+    // Sort by yield descending for consistent display
+    const combined = labels.map((label, idx) => ({ label, yield: yields[idx], color: colors[idx] }))
+        .sort((a, b) => b.yield - a.yield);
+
+    const sortedLabels = combined.map(c => c.label);
+    const sortedYields = combined.map(c => c.yield);
+    const sortedColors = combined.map(c => c.color);
+
+    // Shorten/wrap long labels into multiple lines for better readability
+    function wrapLabel(label, maxLen = 20) {
+        if (typeof label !== 'string') return label;
+        if (label.length <= maxLen) return label;
+        const parts = [];
+        for (let i = 0; i < label.length; i += maxLen) parts.push(label.slice(i, i + maxLen));
+        return parts;
+    }
+    const processedLabels = sortedLabels.map(l => wrapLabel(l, 20));
+
+    if (canvas._chartInstance) {
+        try { canvas._chartInstance.destroy(); } catch (e) { console.debug('destroy chart failed', e); }
+        canvas._chartInstance = null;
+    }
+
+    const ctx = canvas.getContext('2d');
+    canvas.style.background = 'transparent';
+
+    // If all yields are zero/NaN, draw a placeholder instead
+    const hasPositive = sortedYields.some(y => Number.isFinite(y) && y !== 0);
+    if (!hasPositive) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#999';
+        ctx.textAlign = 'center';
+        ctx.font = '16px Roboto, Arial';
+        ctx.fillText('Данные есть, но все значения равны нулю', canvas.width / 2, (canvas.height || 200) / 2);
+        return;
+    }
+
+    // Plugin: draw numeric values above bars for immediate readability
+    const valueLabelPlugin = {
+        id: 'valueLabelPlugin',
+        afterDatasetsDraw(chart) {
+            const {ctx} = chart;
+            ctx.save();
+            chart.data.datasets.forEach((dataset, dsIndex) => {
+                const meta = chart.getDatasetMeta(dsIndex);
+                meta.data.forEach((bar, index) => {
+                    const val = dataset.data[index];
+                    const x = bar.x;
+                    const y = bar.y;
+                    const text = (typeof val === 'number') ? val.toFixed(2) : String(val);
+                    ctx.fillStyle = '#222';
+                    ctx.font = '600 12px Roboto, Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    ctx.fillText(text, x, y - 8);
+                });
+            });
+            ctx.restore();
+        }
+    };
+
+    const chart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: processedLabels,
+            datasets: [{
+                label: 'Выход сахара',
+                data: sortedYields,
+                backgroundColor: sortedColors,
+                borderColor: sortedColors.map(color => color.replace('0.8', '1')),
+                borderWidth: 2,
+                borderRadius: 8,
+                maxBarThickness: 64,
+                barPercentage: 0.7,
+                categoryPercentage: 0.65
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) { return `Выход: ${context.parsed.y.toFixed(2)}`; }
+                    }
+                },
+                title: { display: true, text: 'Результаты оптимизации (одна матрица)', font: { size: 16 } }
+            },
+            scales: {
+                x: {
+                    grid: { color: 'rgba(0,0,0,0.04)' },
+                    ticks: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#718096',
+                        font: { size: 12 },
+                        maxRotation: 45,
+                        minRotation: 0,
+                        autoSkip: false
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(0,0,0,0.06)' },
+                    ticks: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#718096',
+                        font: { size: 12 },
+                        callback: function(value) { return Number(value).toFixed(1); }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Средний выход сахара',
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#718096',
+                        font: { size: 12 }
+                    }
+                }
+            }
+        },
+        plugins: [valueLabelPlugin]
+    });
+
+    canvas._chartInstance = chart;
+}
+
 function getAlgorithmName(key) {
     const names = {
         'greedy': 'Жадный (Greedy)',
         'thrifty': 'Бережливый (Thrifty)',
         'thrifty_greedy': 'Бережливый/Жадный',
         'greedy_thrifty': 'Жадный/Бережливый',
-        'optimal': 'Оптимальный (Венгерский)',
+        'optimal': 'Максимальный (Венгерский)',
         'notoptimal': 'Минимальный (Венгерский)'
     };
     return names[key] || key;
@@ -461,6 +615,16 @@ function renderMultiResultsChart(data) {
         const sortedYields = combined.map(item => item.yield);
         const sortedColors = combined.map(item => item.color);
 
+        // Wrap long labels
+        function wrapLabel(label, maxLen = 20) {
+            if (typeof label !== 'string') return label;
+            if (label.length <= maxLen) return label;
+            const parts = [];
+            for (let i = 0; i < label.length; i += maxLen) parts.push(label.slice(i, i + maxLen));
+            return parts;
+        }
+        const processedLabels = sortedLabels.map(l => wrapLabel(l, 20));
+
         if (canvas._chartInstance) {
             try { canvas._chartInstance.destroy(); } catch(e) {}
             canvas._chartInstance = null;
@@ -469,17 +633,43 @@ function renderMultiResultsChart(data) {
         const ctx = canvas.getContext('2d');
         canvas.style.background = 'transparent';
 
+        const valueLabelPlugin = {
+            id: 'multiValueLabelPlugin',
+            afterDatasetsDraw(chart) {
+                const {ctx} = chart;
+                ctx.save();
+                chart.data.datasets.forEach((dataset, dsIndex) => {
+                    const meta = chart.getDatasetMeta(dsIndex);
+                    meta.data.forEach((bar, index) => {
+                        const val = dataset.data[index];
+                        const x = bar.x;
+                        const y = bar.y;
+                        const text = (typeof val === 'number') ? val.toFixed(2) : String(val);
+                        ctx.fillStyle = '#222';
+                        ctx.font = '600 12px Roboto, Arial';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'bottom';
+                        ctx.fillText(text, x, y - 8);
+                    });
+                });
+                ctx.restore();
+            }
+        };
+
         const chart = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: sortedLabels,
+                labels: processedLabels,
                 datasets: [{
                     label: 'Средний выход сахара',
                     data: sortedYields,
                     backgroundColor: sortedColors,
                     borderColor: sortedColors.map(color => color.replace('0.8', '1')),
                     borderWidth: 2,
-                    borderRadius: 8
+                    borderRadius: 8,
+                    maxBarThickness: 64,
+                    barPercentage: 0.7,
+                    categoryPercentage: 0.65
                 }]
             },
             options: {
@@ -505,7 +695,10 @@ function renderMultiResultsChart(data) {
                         grid: { color: 'rgba(0,0,0,0.04)' },
                         ticks: {
                             color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#718096',
-                            font: { size: 12 }
+                            font: { size: 12 },
+                            maxRotation: 45,
+                            minRotation: 0,
+                            autoSkip: false
                         }
                     },
                     y: {
@@ -513,9 +706,8 @@ function renderMultiResultsChart(data) {
                         grid: { color: 'rgba(0,0,0,0.06)' },
                         ticks: {
                             color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#718096',
-                            callback: function(value) {
-                                return value.toFixed(1);
-                            }
+                            font: { size: 12 },
+                            callback: function(value) { return Number(value).toFixed(1); }
                         },
                         title: {
                             display: true,
@@ -525,6 +717,8 @@ function renderMultiResultsChart(data) {
                     }
                 }
             }
+            ,
+            plugins: [valueLabelPlugin]
         });
 
         canvas._chartInstance = chart;

@@ -541,6 +541,24 @@ body {
     animation: fadeIn 0.6s ease-out;
 }
 
+/* Table sizing and header behavior: keep header row sticky, no sticky left column */
+.matrix-container-modern .matrix-table {
+    width: 100%;
+    table-layout: auto;
+}
+
+.matrix-container-modern .matrix-table thead th:first-child {
+    position: sticky;
+    top: 0; /* keep header at top */
+    z-index: 14;
+}
+
+/* Prevent header/text wrapping for clearer alignment */
+.matrix-container-modern .matrix-table th,
+.matrix-container-modern .matrix-table td {
+    white-space: nowrap;
+}
+
 .table {
     width: 100%;
     border-collapse: collapse;
