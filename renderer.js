@@ -558,10 +558,10 @@ function renderResultsChart(data) {
 
 function getAlgorithmName(key) {
     const names = {
-        'greedy': 'Жадный (Greedy)',
-        'thrifty': 'Бережливый (Thrifty)',
-        'thrifty_greedy': 'Бережливый/Жадный',
-        'greedy_thrifty': 'Жадный/Бережливый',
+        'greedy': 'Жадный ',
+        'thrifty': 'Бережливый ',
+        'thrifty_greedy': 'Бережливый (Жадный)',
+        'greedy_thrifty': 'Жадный (Бережливый)',
         'optimal': 'Максимальный (Венгерский)',
         'notoptimal': 'Минимальный (Венгерский)'
     };

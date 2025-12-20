@@ -236,6 +236,13 @@ def validate_config(data):
     if delta_k_ripening not in [2, 3, 4]:
         errors.append("delta_k_ripening must be one of {2,3,4}")
     
+    # Chemical parameters validation (optional, but good for sanity check)
+    # Ranges from Textbook Section 7:
+    # K: [4.8, 7.05], Na: [0.21, 0.82], N: [1.58, 2.8], I0: [0.62, 0.64]
+    # We assume frontend sends valid ranges if provided.
+    if data.get('k_min') and data.get('k_max') and data['k_min'] > data['k_max']:
+        errors.append("k_min must be <= k_max")
+
     return errors
 
 def generate_single_experiment(config):
@@ -354,6 +361,16 @@ def simulate():
         growth_base=data.get('growth_base', 1.029),
         delta_k=data.get('delta_k', 4),
         delta_k_ripening=data.get('delta_k_ripening', 4),
+        # Chemical parameters from Textbook Section 7
+        # Passing them to config so generate_single_experiment can use them
+        k_min=data.get('k_min', 4.8),
+        k_max=data.get('k_max', 7.05),
+        na_min=data.get('na_min', 0.21),
+        na_max=data.get('na_max', 0.82),
+        n_content_min=data.get('n_content_min', 1.58),
+        n_content_max=data.get('n_content_max', 2.8),
+        i0_min=data.get('i0_min', 0.62),
+        i0_max=data.get('i0_max', 0.64),
     )
     
     # Generate single experiment
@@ -387,6 +404,15 @@ def multi_simulate():
         growth_base=data.get('growth_base', 1.029),
         delta_k=data.get('delta_k', 4),
         delta_k_ripening=data.get('delta_k_ripening', 4),
+        # Chemical parameters
+        k_min=data.get('k_min', 4.8),
+        k_max=data.get('k_max', 7.05),
+        na_min=data.get('na_min', 0.21),
+        na_max=data.get('na_max', 0.82),
+        n_content_min=data.get('n_content_min', 1.58),
+        n_content_max=data.get('n_content_max', 2.8),
+        i0_min=data.get('i0_min', 0.62),
+        i0_max=data.get('i0_max', 0.64),
     )
     
     # Generate 50 experiments
@@ -513,6 +539,37 @@ def optimize():
         app.logger.exception("Optimization failed")
         return jsonify({'error': 'Optimization failed', 'message': str(e)}), 500
 
+def run_algorithm(algo_name, func, args, mass_per_batch):
+    """
+    Helper to run a single optimization algorithm safely.
+    Returns tuple: (yield_val, final_mass, success_bool)
+    """
+    try:
+        # Unpack args if it's a tuple/list, otherwise pass as single arg
+        if isinstance(args, (list, tuple)):
+            perm, yield_val = func(*args)
+        else:
+            perm, yield_val = func(args)
+            
+        final_mass = Optimizer.calculate_final_mass(yield_val, mass_per_batch)
+        return float(yield_val), float(final_mass), True
+    except Exception as e:
+        # app.logger is accessible here because it's in the same module scope,
+        # but ideally should be passed or obtained via current_app
+        app.logger.warning(f"{algo_name} optimization failed: {e}")
+        return 0.0, 0.0, False
+
+def get_optimizer_map(S_tilde, nu):
+    """Returns a dictionary mapping algorithm names to (function, arguments)."""
+    return {
+        'greedy': (Optimizer.optimize_greedy, S_tilde),
+        'thrifty': (Optimizer.optimize_thrifty, S_tilde),
+        'thrifty_greedy': (Optimizer.optimize_thrifty_greedy, (S_tilde, nu)),
+        'greedy_thrifty': (Optimizer.optimize_greedy_thrifty, (S_tilde, nu)),
+        'optimal': (Optimizer.optimize_hungarian, S_tilde),
+        'notoptimal': (Optimizer.optimize_hungarian_min, S_tilde)
+    }
+
 @app.route('/multi_optimize', methods=['POST'])
 def multi_optimize():
     """Apply optimization algorithms to 50 matrices and return average results."""
@@ -525,8 +582,8 @@ def multi_optimize():
             return jsonify({'error': 'Exactly 50 matrices are required'}), 400
         
         # Initialize accumulators for each algorithm
-        algorithms = ['greedy', 'thrifty', 'thrifty_greedy', 'greedy_thrifty', 'optimal', 'notoptimal']
-        accumulators = {algo: {'yield_sum': 0.0, 'mass_sum': 0.0, 'count': 0} for algo in algorithms}
+        algorithm_names = ['greedy', 'thrifty', 'thrifty_greedy', 'greedy_thrifty', 'optimal', 'notoptimal']
+        accumulators = {algo: {'yield_sum': 0.0, 'mass_sum': 0.0, 'count': 0} for algo in algorithm_names}
         
         all_results = []  # Store results for each matrix
         
@@ -536,92 +593,29 @@ def multi_optimize():
             n = S_tilde.shape[0]
             nu = n // 2
             
+            # Define algorithms and their arguments for this matrix
+            algo_map = get_optimizer_map(S_tilde, nu)
             matrix_results = {}
             
-            # Apply each algorithm
-            # 1. Greedy
-            try:
-                perm_greedy, yield_greedy = Optimizer.optimize_greedy(S_tilde)
-                accumulators['greedy']['yield_sum'] += yield_greedy
-                accumulators['greedy']['mass_sum'] += Optimizer.calculate_final_mass(yield_greedy, mass_per_batch)
-                accumulators['greedy']['count'] += 1
-                matrix_results['greedy'] = {
-                    'yield': float(yield_greedy),
-                    'final_mass': float(Optimizer.calculate_final_mass(yield_greedy, mass_per_batch))
+            for algo_name in algorithm_names:
+                func, args = algo_map[algo_name]
+                y_val, m_val, success = run_algorithm(algo_name, func, args, mass_per_batch)
+                
+                if success:
+                    accumulators[algo_name]['yield_sum'] += y_val
+                    accumulators[algo_name]['mass_sum'] += m_val
+                    accumulators[algo_name]['count'] += 1
+                
+                matrix_results[algo_name] = {
+                    'yield': y_val,
+                    'final_mass': m_val
                 }
-            except Exception as e:
-                app.logger.warning(f"Greedy failed for matrix {matrix_idx}: {e}")
-            
-            # 2. Thrifty
-            try:
-                perm_thrifty, yield_thrifty = Optimizer.optimize_thrifty(S_tilde)
-                accumulators['thrifty']['yield_sum'] += yield_thrifty
-                accumulators['thrifty']['mass_sum'] += Optimizer.calculate_final_mass(yield_thrifty, mass_per_batch)
-                accumulators['thrifty']['count'] += 1
-                matrix_results['thrifty'] = {
-                    'yield': float(yield_thrifty),
-                    'final_mass': float(Optimizer.calculate_final_mass(yield_thrifty, mass_per_batch))
-                }
-            except Exception as e:
-                app.logger.warning(f"Thrifty failed for matrix {matrix_idx}: {e}")
-            
-            # 3. Thrifty/Greedy
-            try:
-                perm_tg, yield_tg = Optimizer.optimize_thrifty_greedy(S_tilde, nu)
-                accumulators['thrifty_greedy']['yield_sum'] += yield_tg
-                accumulators['thrifty_greedy']['mass_sum'] += Optimizer.calculate_final_mass(yield_tg, mass_per_batch)
-                accumulators['thrifty_greedy']['count'] += 1
-                matrix_results['thrifty_greedy'] = {
-                    'yield': float(yield_tg),
-                    'final_mass': float(Optimizer.calculate_final_mass(yield_tg, mass_per_batch))
-                }
-            except Exception as e:
-                app.logger.warning(f"Thrifty/Greedy failed for matrix {matrix_idx}: {e}")
-            
-            # 4. Greedy/Thrifty
-            try:
-                perm_gt, yield_gt = Optimizer.optimize_greedy_thrifty(S_tilde, nu)
-                accumulators['greedy_thrifty']['yield_sum'] += yield_gt
-                accumulators['greedy_thrifty']['mass_sum'] += Optimizer.calculate_final_mass(yield_gt, mass_per_batch)
-                accumulators['greedy_thrifty']['count'] += 1
-                matrix_results['greedy_thrifty'] = {
-                    'yield': float(yield_gt),
-                    'final_mass': float(Optimizer.calculate_final_mass(yield_gt, mass_per_batch))
-                }
-            except Exception as e:
-                app.logger.warning(f"Greedy/Thrifty failed for matrix {matrix_idx}: {e}")
-            
-            # 5. Hungarian (optimal)
-            try:
-                perm_hungarian, yield_hungarian = Optimizer.optimize_hungarian(S_tilde)
-                accumulators['optimal']['yield_sum'] += yield_hungarian
-                accumulators['optimal']['mass_sum'] += Optimizer.calculate_final_mass(yield_hungarian, mass_per_batch)
-                accumulators['optimal']['count'] += 1
-                matrix_results['optimal'] = {
-                    'yield': float(yield_hungarian),
-                    'final_mass': float(Optimizer.calculate_final_mass(yield_hungarian, mass_per_batch))
-                }
-            except Exception as e:
-                app.logger.warning(f"Hungarian (optimal) failed for matrix {matrix_idx}: {e}")
-            
-            # 6. Hungarian min (notoptimal)
-            try:
-                perm_hungarian_min, yield_hungarian_min = Optimizer.optimize_hungarian_min(S_tilde)
-                accumulators['notoptimal']['yield_sum'] += yield_hungarian_min
-                accumulators['notoptimal']['mass_sum'] += Optimizer.calculate_final_mass(yield_hungarian_min, mass_per_batch)
-                accumulators['notoptimal']['count'] += 1
-                matrix_results['notoptimal'] = {
-                    'yield': float(yield_hungarian_min),
-                    'final_mass': float(Optimizer.calculate_final_mass(yield_hungarian_min, mass_per_batch))
-                }
-            except Exception as e:
-                app.logger.warning(f"Hungarian min failed for matrix {matrix_idx}: {e}")
             
             all_results.append(matrix_results)
         
         # Calculate averages
         averages = {}
-        for algo in algorithms:
+        for algo in algorithm_names:
             if accumulators[algo]['count'] > 0:
                 avg_yield = accumulators[algo]['yield_sum'] / accumulators[algo]['count']
                 avg_mass = accumulators[algo]['mass_sum'] / accumulators[algo]['count']
@@ -640,7 +634,7 @@ def multi_optimize():
         
         # Calculate relative losses vs optimal
         if 'optimal' in averages and averages['optimal']['yield'] > 0:
-            for algo in algorithms:
+            for algo in algorithm_names:
                 if algo != 'optimal' and algo in averages:
                     relative_loss = ((averages['optimal']['yield'] - averages[algo]['yield']) / 
                                     averages['optimal']['yield']) * 100
